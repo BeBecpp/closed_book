@@ -1,0 +1,139 @@
+// CLOSED BOOK — private release attestation for AI model builds.
+//
+// An authorised evaluator proves that a private, fixed-size evaluation result
+// satisfies a public release predicate, bound to a model-build commitment and
+// an evaluation-suite commitment. Only commitments and the attestation record
+// are disclosed. Individual check results, suite contents and salts stay in
+// the witness.
+//
+// What this circuit does NOT prove: that the evaluation was actually run, that
+// the results are truthful, or that the suite is any good. The evaluator is
+// trusted for its inputs; the circuit binds those inputs to a key, a model and
+// a suite, and enforces the predicate.
+
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+// ---------------------------------------------------------------------------
+// Public ledger
+// ---------------------------------------------------------------------------
+
+export struct Attestation {
+  model: Bytes<32>,
+  suite: Bytes<32>,
+  predicate: Bytes<32>,
+  evidence: Bytes<32>,
+  evaluator: Bytes<32>
+}
+
+// Public key of the only evaluator allowed to attest with this contract.
+export ledger evaluator: Bytes<32>;
+
+// Release predicate identifier, e.g. "safety-baseline:1".
+export ledger predicate: Bytes<32>;
+
+// Number of the six private checks that must pass.
+export ledger threshold: Uint<8>;
+
+// Attestation id -> public attestation record.
+export ledger attestations: Map<Bytes<32>, Attestation>;
+
+export ledger attestationCount: Counter;
+
+// ---------------------------------------------------------------------------
+// Private witnesses (supplied by the evaluator's local private state)
+// ---------------------------------------------------------------------------
+
+witness evaluatorSecret(): Bytes<32>;
+witness modelDigest(): Bytes<32>;
+witness suiteDigest(): Bytes<32>;
+witness suiteSalt(): Bytes<32>;
+witness checkResults(): Vector<6, Boolean>;
+witness evidenceSalt(): Bytes<32>;
+
+constructor(evaluatorKey: Bytes<32>, predicateId: Bytes<32>, requiredPasses: Uint<8>) {
+  assert(requiredPasses <= 6, "threshold exceeds number of checks");
+  assert(requiredPasses > 0, "threshold must be at least one check");
+  evaluator = disclose(evaluatorKey);
+  predicate = disclose(predicateId);
+  threshold = disclose(requiredPasses);
+}
+
+// ---------------------------------------------------------------------------
+// Commitment scheme (pure; mirrored in src/lib/commitments)
+// ---------------------------------------------------------------------------
+
+export pure circuit deriveEvaluatorKey(secret: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "closedbook:evaluator:v1"), secret]);
+}
+
+export pure circuit commitModel(digest: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "closedbook:model:v1"), digest]);
+}
+
+export pure circuit commitSuite(digest: Bytes<32>, salt: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "closedbook:suite:v1"), digest, salt]);
+}
+
+// Six results packed into one word: bit i set <=> check i passed.
+export pure circuit packResults(results: Vector<6, Boolean>): Bytes<32> {
+  const mask = (results[0] ? 1 : 0) + (results[1] ? 2 : 0) + (results[2] ? 4 : 0) +
+               (results[3] ? 8 : 0) + (results[4] ? 16 : 0) + (results[5] ? 32 : 0);
+  return mask as Field as Bytes<32>;
+}
+
+export pure circuit countPasses(results: Vector<6, Boolean>): Uint<8> {
+  const total = (results[0] ? 1 : 0) + (results[1] ? 1 : 0) + (results[2] ? 1 : 0) +
+                (results[3] ? 1 : 0) + (results[4] ? 1 : 0) + (results[5] ? 1 : 0);
+  return total as Uint<8>;
+}
+
+export pure circuit commitEvidence(model: Bytes<32>, suite: Bytes<32>, predicateId: Bytes<32>,
+                                   packed: Bytes<32>, salt: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<6, Bytes<32>>>(
+    [pad(32, "closedbook:evidence:v1"), model, suite, predicateId, packed, salt]);
+}
+
+export pure circuit deriveAttestationId(model: Bytes<32>, suite: Bytes<32>, predicateId: Bytes<32>,
+                                        evidence: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<5, Bytes<32>>>(
+    [pad(32, "closedbook:attestation:v1"), model, suite, predicateId, evidence]);
+}
+
+// ---------------------------------------------------------------------------
+// Attestation
+// ---------------------------------------------------------------------------
+
+// Records a release attestation for (model, suite) under the contract's
+// predicate. Succeeds only if:
+//   1. the caller holds the registered evaluator secret,
+//   2. the private model digest opens `model`,
+//   3. the private suite digest + salt open `suite`,
+//   4. at least `threshold` of the six private checks passed,
+//   5. the same attestation has not been recorded before.
+// If any assertion fails, no proof can be produced and nothing is recorded.
+export circuit attest(model: Bytes<32>, suite: Bytes<32>): Bytes<32> {
+  const signer = deriveEvaluatorKey(evaluatorSecret());
+  assert(signer == evaluator, "not the registered evaluator");
+
+  assert(commitModel(modelDigest()) == model, "model commitment mismatch");
+  assert(commitSuite(suiteDigest(), suiteSalt()) == suite, "suite commitment mismatch");
+
+  const results = checkResults();
+  assert(countPasses(results) >= threshold, "release predicate not satisfied");
+
+  const evidence = commitEvidence(model, suite, predicate, packResults(results), evidenceSalt());
+  const id = deriveAttestationId(model, suite, predicate, evidence);
+  assert(!attestations.member(disclose(id)), "attestation already recorded");
+
+  attestations.insert(disclose(id), disclose(Attestation {
+    model: model,
+    suite: suite,
+    predicate: predicate,
+    evidence: evidence,
+    evaluator: signer
+  }));
+  attestationCount.increment(1);
+  return disclose(id);
+}

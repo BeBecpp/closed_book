@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      proving_keys:
+        description: "Also generate ZK proving keys (downloads public parameters; slow)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Lint · typecheck · test · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run contract:demo
+      - run: npm run build
+
+  contract:
+    name: Compile Compact contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Compact toolchain 0.31.1
+        uses: midnightntwrk/setup-compact-action@836895c8fffbbea6bd986af2b17e8941ff29d1f8
+        with:
+          compact-version: "0.31.1"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Confirm pinned compiler
+        run: test "$(compact compile --version)" = "0.31.1"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Compile (circuit logic + ZKIR, no proving keys)
+        run: node scripts/compile-contract.mjs
+      - name: Committed compiled output matches the source
+        run: git diff --exit-code -- contract/src/managed
+
+  proving-keys:
+    name: Generate proving keys
+    if: github.event_name == 'workflow_dispatch' && inputs.proving_keys
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: midnightntwrk/setup-compact-action@836895c8fffbbea6bd986af2b17e8941ff29d1f8
+        with:
+          compact-version: "0.31.1"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/compile-contract.mjs --full
+      - run: ls -la contract/build/closed-book/keys
