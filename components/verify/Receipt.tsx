@@ -5,9 +5,16 @@ import { useEffect, useState } from "react";
 import { Mark } from "@/components/brand/Mark";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { Bar } from "@/components/ui/Redaction";
-import { SOURCE_DISCLAIMER, SOURCE_LABEL } from "@/src/lib/attestation/adapter";
+import { SOURCE_LABEL } from "@/src/lib/attestation/adapter";
 import { getDemoAdapter } from "@/src/lib/attestation/browser";
 import { createLocalCircuitClient, probeLocalCircuit } from "@/src/lib/attestation/local-circuit-client";
+import {
+  checkIssuer,
+  classifyReceipt,
+  RECEIPT_STATE,
+  type IssuerCheck,
+  type ReceiptStatus,
+} from "@/src/lib/attestation/receipt";
 import type { PublicAttestation } from "@/src/lib/attestation/types";
 import { checkRecordIntegrity, decodeRecord, encodeRecord, type IntegrityReport } from "@/src/lib/attestation/verify";
 import { Flag } from "@/components/ui/Flag";
@@ -23,7 +30,8 @@ type State =
       origin: Origin;
       integrity: IntegrityReport;
       referenceMatches: boolean;
-      ledger: "found" | "absent" | "unreachable" | "n/a";
+      issuer: IssuerCheck;
+      status: ReceiptStatus;
     };
 
 const ORIGIN_LABEL: Record<Origin, string> = {
@@ -42,6 +50,10 @@ async function resolve(reference: string): Promise<State> {
   let record: PublicAttestation | null = null;
   let origin: Origin = "link";
 
+  const demo = await getDemoAdapter();
+  const local = await probeLocalCircuit();
+  const client = createLocalCircuitClient();
+
   const hash = typeof window !== "undefined" ? window.location.hash : "";
   const fragment = new URLSearchParams(hash.slice(1)).get("r");
   if (fragment) {
@@ -50,11 +62,9 @@ async function resolve(reference: string): Promise<State> {
   }
   if (!record) {
     searched.push("demo registry in this browser");
-    record = await (await getDemoAdapter()).lookup(reference);
+    record = await demo.lookup(reference);
     origin = "browser";
   }
-  const local = await probeLocalCircuit();
-  const client = createLocalCircuitClient();
   if (!record && local.available) {
     searched.push("local contract ledger");
     record = await client.lookup(reference);
@@ -62,20 +72,17 @@ async function resolve(reference: string): Promise<State> {
   }
   if (!record) return { kind: "missing", searched };
 
-  let ledger: "found" | "absent" | "unreachable" | "n/a" = "n/a";
-  if (record.source === "MIDNIGHT_LOCAL") {
-    if (!local.available) ledger = "unreachable";
-    else ledger = (await client.lookup(record.id))?.evidenceCommitment === record.evidenceCommitment ? "found" : "absent";
-  }
-
-  return {
-    kind: "found",
-    record,
-    origin,
-    integrity: await checkRecordIntegrity(record),
-    referenceMatches: matchesReference(record, reference),
-    ledger,
-  };
+  const integrity = await checkRecordIntegrity(record);
+  const referenceMatches = matchesReference(record, reference);
+  // Only the record's own claimed issuer is asked. There is no network
+  // verifier in this repository, so MIDNIGHT records stay claims.
+  const issuer = await checkIssuer(record, {
+    demo: (id) => demo.lookup(id),
+    local: local.available ? (id) => client.lookup(id) : null,
+    network: null,
+  });
+  const status = classifyReceipt(record, { integrity, referenceMatches, issuer });
+  return { kind: "found", record, origin, integrity, referenceMatches, issuer, status };
 }
 
 function Line({ label, children, big = false }: { label: string; children: React.ReactNode; big?: boolean }) {
@@ -87,23 +94,89 @@ function Line({ label, children, big = false }: { label: string; children: React
   );
 }
 
-function Check({ label, ok, detail }: { label: string; ok: boolean | null; detail: string }) {
+type CheckResult = "match" | "mismatch" | "absent" | "unavailable";
+
+const CHECK_TEXT: Record<CheckResult, string> = {
+  match: "Match",
+  mismatch: "Mismatch",
+  absent: "Not found",
+  unavailable: "Unavailable",
+};
+
+function Check({ label, result, detail }: { label: string; result: CheckResult; detail: string }) {
+  const bad = result === "mismatch" || result === "absent";
   return (
     <li className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-1 border-t border-line py-3 print-plain">
       <span>{label}</span>
-      <span className={`t-label ${ok === null ? "text-graphite" : ""}`}>
-        {ok === null ? "Not applicable" : ok ? "Match" : <Flag>Mismatch</Flag>}
+      <span className={`t-label ${result === "unavailable" ? "text-graphite" : ""}`}>
+        {bad ? <Flag>{CHECK_TEXT[result]}</Flag> : CHECK_TEXT[result]}
       </span>
       <span className="col-span-2 text-[0.8125rem] text-graphite">{detail}</span>
     </li>
   );
 }
 
-function proofLine(record: PublicAttestation): string {
-  // No network verifier is configured, so a Midnight proof claim is shown as a claim.
-  if (record.source === "MIDNIGHT") return "Claimed Midnight proof · not verified by this page";
+const ok = (b: boolean): CheckResult => (b ? "match" : "mismatch");
+
+const ISSUER_LABEL: Record<PublicAttestation["source"], string> = {
+  DEMO: "The demo registry in this browser holds this exact record",
+  MIDNIGHT_LOCAL: "The local contract ledger holds this exact record",
+  MIDNIGHT: "A Midnight network verifier confirmed the proven transaction",
+};
+
+function issuerDetail(record: PublicAttestation, issuer: IssuerCheck): string {
+  if (record.source === "MIDNIGHT") {
+    return "No network verifier is configured in this repository, so this cannot be confirmed here.";
+  }
+  if (issuer === "unreachable") return "The local contract that would hold this record is not reachable from this page.";
+  if (issuer === "absent") {
+    return record.source === "DEMO"
+      ? "The demo adapter in this browser did not issue this record."
+      : "The local contract ledger has no attestation with this id.";
+  }
+  if (issuer === "mismatch") return "The issuer holds a different record under this id.";
+  return "Compared field by field: id, release key, commitments, evaluator key, predicate and source.";
+}
+
+function proofLine(record: PublicAttestation, status: ReceiptStatus): string {
+  if (status === "NETWORK_VERIFIED") return "Verified on a Midnight network";
+  if (record.source === "MIDNIGHT") return "Claimed · not verified by this page";
   if (record.source === "MIDNIGHT_LOCAL") return "Not generated · circuit executed locally";
   return "None · demo adapter";
+}
+
+/** Each state looks different, not only reads different. */
+const STAMP_CLASS: Record<ReceiptStatus, string> = {
+  NETWORK_VERIFIED: "bg-ink text-paper",
+  LOCAL_CIRCUIT_ATTESTED: "border-2 border-ink",
+  DEMO_PASS: "border border-dashed border-ink",
+  CLAIMED_PASS: "border border-line text-graphite",
+  ALTERED: "border border-line",
+};
+
+function Verdict({ status }: { status: ReceiptStatus }) {
+  const copy = RECEIPT_STATE[status];
+  switch (status) {
+    case "NETWORK_VERIFIED":
+      return <span className="font-mono text-[2.25rem] font-medium leading-none">{copy.verdict}</span>;
+    case "LOCAL_CIRCUIT_ATTESTED":
+      return (
+        <span className="flex flex-wrap items-baseline gap-3">
+          <span className="font-mono text-[1.5rem] font-medium leading-none">PASS</span>
+          <span className="t-label">Local circuit · no ZK proof</span>
+        </span>
+      );
+    case "DEMO_PASS":
+      return <span className="t-data">{copy.verdict}</span>;
+    case "CLAIMED_PASS":
+      return <span className="t-data text-graphite">{copy.verdict}</span>;
+    case "ALTERED":
+      return (
+        <span className="t-data">
+          <Flag>{copy.verdict}</Flag>
+        </span>
+      );
+  }
 }
 
 export function Receipt({ reference }: { reference: string }) {
@@ -111,9 +184,15 @@ export function Receipt({ reference }: { reference: string }) {
 
   useEffect(() => {
     let live = true;
-    resolve(reference).then((s) => live && setState(s));
+    const run = () => {
+      resolve(reference).then((s) => live && setState(s));
+    };
+    run();
+    // A different #r= record at the same address must be judged afresh.
+    window.addEventListener("hashchange", run);
     return () => {
       live = false;
+      window.removeEventListener("hashchange", run);
     };
   }, [reference]);
 
@@ -165,8 +244,9 @@ export function Receipt({ reference }: { reference: string }) {
 }
 
 function Found({ state }: { state: Extract<State, { kind: "found" }> }) {
-  const { record, integrity } = state;
-  const verified = integrity.idMatches && integrity.codeMatches && state.referenceMatches;
+  const { record, integrity, status, issuer } = state;
+  const copy = RECEIPT_STATE[status];
+  const publicBytes = new TextEncoder().encode(JSON.stringify(record)).length;
   const link =
     typeof window === "undefined" ? "" : `${window.location.origin}/verify/${record.code}#r=${encodeRecord(record)}`;
 
@@ -179,10 +259,17 @@ function Found({ state }: { state: Extract<State, { kind: "found" }> }) {
             {record.code}
           </h1>
         </div>
-        <p className="t-label bg-ink px-2 py-1 text-paper justify-self-start sm:justify-self-end">
-          {SOURCE_LABEL[record.source]}
-        </p>
+        <div className="justify-self-start sm:justify-self-end sm:text-right">
+          <p className={`t-label inline-block px-2 py-1 ${STAMP_CLASS[status]}`} data-status={status}>
+            {status === "ALTERED" || status === "CLAIMED_PASS" ? <Flag>{copy.stamp}</Flag> : copy.stamp}
+          </p>
+          <p className="t-label mt-2 text-graphite">Source · {SOURCE_LABEL[record.source]}</p>
+        </div>
       </div>
+
+      <p className="mt-6 max-w-[62ch] border-l-2 border-ink pl-4 text-[0.9375rem]" role="status">
+        {copy.meaning}
+      </p>
 
       <dl className="mt-10">
         <Line label="Model build">
@@ -197,26 +284,22 @@ function Found({ state }: { state: Extract<State, { kind: "found" }> }) {
           </span>
         </Line>
         <Line label="Verdict" big>
-          {verified ? (
-            <span className="font-mono text-[2.25rem] font-medium leading-none">PASS</span>
-          ) : (
-            <span className="t-data">
-              <Flag>Not shown — this record fails its integrity checks</Flag>
-            </span>
-          )}
+          <Verdict status={status} />
         </Line>
         <Line label="Proof" big>
-          <span className="t-data">{proofLine(record)}</span>
+          <span className="t-data">{proofLine(record, status)}</span>
         </Line>
-        <Line label="Private evidence disclosed" big>
-          <span className="t-data">0 bytes</span>
+        <Line label="Private plaintext fields" big>
+          <span className="t-data">None in this record&rsquo;s schema</span>
           <span className="mt-1 block text-[0.8125rem] text-graphite">
-            This record holds commitments, the predicate and a build label. None of its fields carries a prompt, an
-            output or a check result.
+            The record publishes {publicBytes} bytes: commitments, the predicate and labels. None of its fields holds a
+            prompt, an output or a check result. This page does not have the private evaluation, so it cannot scan for
+            leaked plaintext; the issuing page runs that scan at issue time.
           </span>
         </Line>
         <Line label="Evidence commitment">{record.evidenceCommitment}</Line>
         <Line label="Evaluator key">{record.evaluatorKey}</Line>
+        <Line label="Release key">{record.releaseKey}</Line>
         <Line label="Attestation id">{record.id}</Line>
         {record.circuit && (
           <Line label="Circuit">
@@ -234,44 +317,60 @@ function Found({ state }: { state: Extract<State, { kind: "found" }> }) {
         <ul>
           <Check
             label="Attestation id recomputes from the public fields"
-            ok={integrity.idMatches}
-            detail="SHA-256 over the domain tag, model, suite, predicate and evidence commitments — the same derivation as the contract."
+            result={ok(integrity.idMatches)}
+            detail="SHA-256 over the domain tag, model, suite, predicate and evidence commitments — the contract's derivation. This shows self-consistency only: anyone can build a self-consistent record."
           />
-          <Check label="Reference code derives from the id" ok={integrity.codeMatches} detail="CB- followed by the first three bytes of the id." />
-          <Check label="Requested reference matches this record" ok={state.referenceMatches} detail="The address you opened names this attestation." />
           <Check
-            label="Record present on the contract ledger"
-            ok={state.ledger === "n/a" || state.ledger === "unreachable" ? null : state.ledger === "found"}
-            detail={
-              state.ledger === "n/a"
-                ? "Demo records are not on any ledger."
-                : state.ledger === "unreachable"
-                  ? "The local contract that issued this record is not reachable from this browser."
-                  : "Looked up by id on the locally executed contract's ledger state."
-            }
+            label="Release key recomputes from model, suite and predicate"
+            result={ok(integrity.releaseMatches)}
+            detail="The contract allows one attestation per release key."
+          />
+          <Check
+            label="Reference code derives from the id"
+            result={ok(integrity.codeMatches)}
+            detail="CB- followed by the first three bytes of the id."
+          />
+          <Check
+            label="Requested reference matches this record"
+            result={ok(state.referenceMatches)}
+            detail="The address you opened names this attestation."
+          />
+          <Check
+            label={ISSUER_LABEL[record.source]}
+            result={issuer === "unreachable" ? "unavailable" : issuer}
+            detail={issuerDetail(record, issuer)}
+          />
+          <Check
+            label="Zero-knowledge proof verified"
+            result={status === "NETWORK_VERIFIED" ? "match" : "unavailable"}
+            detail="Requires a proven transaction on a Midnight network. This repository has not produced one."
           />
         </ul>
-        <p className="mt-4 border-t border-ink pt-4 text-[0.9375rem] print-plain">
-          {verified
-            ? record.source === "MIDNIGHT"
-              ? "Record integrity holds. This record claims a Midnight network proof; this page has no network verifier configured, so that claim is not verified here."
-              : "Record integrity holds. The issuing adapter states: " + SOURCE_DISCLAIMER[record.source]
-            : <Flag>This record does not match its own public fields. Treat it as altered.</Flag>}
-        </p>
         <p className="mt-2 text-[0.8125rem] text-graphite">Source of this copy: {ORIGIN_LABEL[state.origin]}.</p>
       </section>
 
       <div className="mt-10 border-t border-line pt-6 print-plain" aria-hidden="true">
         <p className="t-label text-graphite">Evaluation evidence</p>
         <div className="t-data mt-3 space-y-2">
-          <p className="flex gap-[0.6ch]"><Bar w={18} /><Bar w={9} /><Bar w={12} /></p>
-          <p className="flex gap-[0.6ch]"><Bar w={26} /><Bar w={7} /></p>
+          <p className="flex gap-[0.6ch]">
+            <Bar w={18} />
+            <Bar w={9} />
+            <Bar w={12} />
+          </p>
+          <p className="flex gap-[0.6ch]">
+            <Bar w={26} />
+            <Bar w={7} />
+          </p>
         </div>
         <p className="t-label mt-3 text-graphite">The evidence stays closed.</p>
       </div>
 
       <div className="no-print mt-10 flex flex-wrap gap-x-8 gap-y-4 border-t border-ink pt-6">
-        <button type="button" onClick={() => window.print()} className="t-label bg-ink px-4 py-3 text-paper hover:bg-graphite">
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="t-label bg-ink px-4 py-3 text-paper hover:bg-graphite"
+        >
           Print receipt
         </button>
         <CopyButton value={record.code} label="Copy attestation id" className="py-3" />

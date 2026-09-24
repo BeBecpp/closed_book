@@ -39,6 +39,10 @@ export ledger threshold: Uint<8>;
 // Attestation id -> public attestation record.
 export ledger attestations: Map<Bytes<32>, Attestation>;
 
+// Release key H("closedbook:release:v1", model, suite, predicate) -> attestation id.
+// At most one attestation per (model, suite, predicate) on this contract.
+export ledger releases: Map<Bytes<32>, Bytes<32>>;
+
 export ledger attestationCount: Counter;
 
 // ---------------------------------------------------------------------------
@@ -95,6 +99,13 @@ export pure circuit commitEvidence(model: Bytes<32>, suite: Bytes<32>, predicate
     [pad(32, "closedbook:evidence:v1"), model, suite, predicateId, packed, salt]);
 }
 
+// Identifies a release: one model build, one suite, one predicate. Built only
+// from public values, so it reveals nothing beyond the record itself.
+export pure circuit deriveReleaseKey(model: Bytes<32>, suite: Bytes<32>, predicateId: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<4, Bytes<32>>>(
+    [pad(32, "closedbook:release:v1"), model, suite, predicateId]);
+}
+
 export pure circuit deriveAttestationId(model: Bytes<32>, suite: Bytes<32>, predicateId: Bytes<32>,
                                         evidence: Bytes<32>): Bytes<32> {
   return persistentHash<Vector<5, Bytes<32>>>(
@@ -111,7 +122,9 @@ export pure circuit deriveAttestationId(model: Bytes<32>, suite: Bytes<32>, pred
 //   2. the private model digest opens `model`,
 //   3. the private suite digest + salt open `suite`,
 //   4. at least `threshold` of the six private checks passed,
-//   5. the same attestation has not been recorded before.
+//   5. no attestation exists yet for this (model, suite, predicate).
+// Rule 5 is keyed on the release, not on the attestation id: a fresh evidence
+// salt yields a new id but the same release key, and is refused.
 // If any assertion fails, no proof can be produced and nothing is recorded.
 export circuit attest(model: Bytes<32>, suite: Bytes<32>): Bytes<32> {
   const signer = deriveEvaluatorKey(evaluatorSecret());
@@ -123,10 +136,13 @@ export circuit attest(model: Bytes<32>, suite: Bytes<32>): Bytes<32> {
   const results = checkResults();
   assert(countPasses(results) >= threshold, "release predicate not satisfied");
 
+  const release = deriveReleaseKey(model, suite, predicate);
+  assert(!releases.member(disclose(release)), "release already attested");
+
   const evidence = commitEvidence(model, suite, predicate, packResults(results), evidenceSalt());
   const id = deriveAttestationId(model, suite, predicate, evidence);
-  assert(!attestations.member(disclose(id)), "attestation already recorded");
 
+  releases.insert(disclose(release), disclose(id));
   attestations.insert(disclose(id), disclose(Attestation {
     model: model,
     suite: suite,

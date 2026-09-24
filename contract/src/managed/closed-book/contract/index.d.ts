@@ -39,6 +39,9 @@ export type PureCircuits = {
                  predicateId_0: Uint8Array,
                  packed_0: Uint8Array,
                  salt_0: Uint8Array): Uint8Array;
+  deriveReleaseKey(model_0: Uint8Array,
+                   suite_0: Uint8Array,
+                   predicateId_0: Uint8Array): Uint8Array;
   deriveAttestationId(model_0: Uint8Array,
                       suite_0: Uint8Array,
                       predicateId_0: Uint8Array,
@@ -60,6 +63,10 @@ export type Circuits<PS> = {
                  predicateId_0: Uint8Array,
                  packed_0: Uint8Array,
                  salt_0: Uint8Array): __compactRuntime.CircuitResults<PS, Uint8Array>;
+  deriveReleaseKey(context: __compactRuntime.CircuitContext<PS>,
+                   model_0: Uint8Array,
+                   suite_0: Uint8Array,
+                   predicateId_0: Uint8Array): __compactRuntime.CircuitResults<PS, Uint8Array>;
   deriveAttestationId(context: __compactRuntime.CircuitContext<PS>,
                       model_0: Uint8Array,
                       suite_0: Uint8Array,
@@ -80,6 +87,13 @@ export type Ledger = {
     member(key_0: Uint8Array): boolean;
     lookup(key_0: Uint8Array): Attestation;
     [Symbol.iterator](): Iterator<[Uint8Array, Attestation]>
+  };
+  releases: {
+    isEmpty(): boolean;
+    size(): bigint;
+    member(key_0: Uint8Array): boolean;
+    lookup(key_0: Uint8Array): Uint8Array;
+    [Symbol.iterator](): Iterator<[Uint8Array, Uint8Array]>
   };
   readonly attestationCount: bigint;
 }

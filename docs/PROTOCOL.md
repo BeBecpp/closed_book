@@ -45,11 +45,13 @@ assert H(pad("closedbook:model:v1"), modelDigest) == model "model commitment mis
 assert H(pad("closedbook:suite:v1"), suiteDigest, suiteSalt) == suite
                                                            "suite commitment mismatch"
 assert popcount(results) >= ledger.threshold              "release predicate not satisfied"
+release  = H(pad("closedbook:release:v1"), model, suite, ledger.predicate)
+assert release ∉ ledger.releases                          "release already attested"
 evidence = H(pad("closedbook:evidence:v1"), model, suite, ledger.predicate,
              pack(results), evidenceSalt)
 id       = H(pad("closedbook:attestation:v1"), model, suite, ledger.predicate, evidence)
-assert id ∉ ledger.attestations                           "attestation already recorded"
-ledger.attestations[id] = { model, suite, predicate, evidence, evaluator: signer }
+ledger.releases[release] = id
+ledger.attestations[id]  = { model, suite, predicate, evidence, evaluator: signer }
 ledger.attestationCount += 1
 return id
 ```
@@ -72,15 +74,18 @@ time, source) that is not part of the ledger record.
 
 A verifier holding a record:
 
-1. Recomputes `id` from `(model, suite, predicate, evidence)`. Match ⇒ the
-   record is internally consistent.
+1. Recomputes `id` from `(model, suite, predicate, evidence)` and the release
+   key from `(model, suite, predicate)`. Match ⇒ the record is internally
+   consistent — and nothing more: anyone can construct such a record.
 2. Compares `model` with the developer's published commitment for the
    release, and `suite` with the evaluator's published suite commitment.
 3. Checks `evaluator` is the key of the evaluator it trusts, and that the
    contract's `threshold`/`predicate` are the rule it cares about.
-4. On a Midnight network: confirms the record is in the contract's
-   `attestations` map (the network verified the proof when it accepted the
-   transaction).
+4. Confirms the record with its issuer: on a Midnight network, that the
+   record is in the contract's `attestations` map and `releases[release] = id`
+   (the network verified the proof when it accepted the transaction). Until
+   this step succeeds the verdict is only a claim. The web receipt's five
+   states are defined in `src/lib/attestation/receipt.ts`.
 
 ## Audit opening
 
@@ -96,7 +101,7 @@ does not open it.
 | Binding to suite | Salted suite commitment opening asserted in-circuit | Suite quality is out of scope |
 | Predicate | Threshold read from ledger; popcount asserted | Results are evaluator-supplied |
 | Attribution | Evaluator secret → registered key | Key compromise |
-| Non-replay | Map membership check | Per contract |
+| One attestation per release | `releases` map keyed by H(model, suite, predicate); a fresh evidence salt does not help | Per contract; a new suite commitment is a new release |
 | Hiding | 32-byte salts; only commitments disclosed | Existence of a PASS record is public |
 
 ## What is not in the protocol

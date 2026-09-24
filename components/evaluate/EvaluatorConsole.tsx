@@ -7,7 +7,9 @@ import { useAttestation } from "@/components/demo/useAttestation";
 import { Hash } from "@/components/ui/Hash";
 import { RedactedLines } from "@/components/ui/Redaction";
 import { NETWORK_UNAVAILABLE, SOURCE_LABEL } from "@/src/lib/attestation/adapter";
-import { freshSalt, getDemoAdapter } from "@/src/lib/attestation/browser";
+import { freshSalt, getDemoAdapter, resetDemoLedger } from "@/src/lib/attestation/browser";
+import { RECEIPT_STATE, issuedStatus } from "@/src/lib/attestation/receipt";
+import { AlreadyAttested } from "@/components/demo/AlreadyAttested";
 import { deriveCommitments, type DerivedCommitments } from "@/src/lib/attestation/evaluation";
 import {
   createLocalCircuitClient,
@@ -378,6 +380,7 @@ export function EvaluatorConsole() {
               <li className="flex justify-between gap-4 border-b border-line py-2"><span>predicate</span><span>{DEMO_PREDICATE.id}</span></li>
               <li className="flex justify-between gap-4 border-b border-line py-2"><span>evidenceCommitment</span><span className="text-graphite">at issue</span></li>
               <li className="flex justify-between gap-4 border-b border-line py-2"><span>evaluatorKey</span><Hash value={derived?.evaluatorKey ?? ""} /></li>
+              <li className="flex justify-between gap-4 border-b border-line py-2"><span>releaseKey</span><span className="text-graphite">at issue</span></li>
             </ul>
           </div>
           <div>
@@ -424,8 +427,21 @@ export function EvaluatorConsole() {
               <p className="mt-3 max-w-[52ch] text-[1.0625rem]">{outcome.message}</p>
               <p className="mt-1 max-w-[52ch] text-[1.0625rem]">No private evaluation data was disclosed.</p>
               <p className="t-label mt-4 text-graphite">
-                {outcome.reason} · {SOURCE_LABEL[outcome.source]} · {disclosed ?? 0} bytes disclosed
+                {outcome.reason} · {SOURCE_LABEL[outcome.source]} · no public record written
               </p>
+              {outcome.existing && (
+                <AlreadyAttested
+                  existing={outcome.existing}
+                  onReset={
+                    outcome.source === "DEMO"
+                      ? async () => {
+                          await resetDemoLedger();
+                          reset();
+                        }
+                      : undefined
+                  }
+                />
+              )}
             </div>
           )}
 
@@ -433,13 +449,16 @@ export function EvaluatorConsole() {
             <div className="fade-in mt-8 border border-ink p-5 sm:p-8">
               <div className="flex flex-wrap items-baseline justify-between gap-4">
                 <p className="font-mono text-[2rem] font-medium leading-none">{outcome.attestation.code}</p>
-                <p className="t-label bg-ink px-2 py-1 text-paper">{SOURCE_LABEL[outcome.attestation.source]}</p>
+                <p className="t-label border border-ink px-2 py-1">
+                  {RECEIPT_STATE[issuedStatus(outcome.attestation)].stamp} · {SOURCE_LABEL[outcome.attestation.source]}
+                </p>
               </div>
               <dl className="mt-6">
                 {[
                   ["Model build", outcome.attestation.modelCommitment],
                   ["Suite commitment", outcome.attestation.suiteCommitment],
                   ["Evidence commitment", outcome.attestation.evidenceCommitment],
+                  ["Release key", outcome.attestation.releaseKey],
                   ["Attestation id", outcome.attestation.id],
                 ].map(([k, v]) => (
                   <div key={k} className="grid gap-1 border-t border-line py-2.5 sm:grid-cols-[13rem_minmax(0,1fr)] sm:gap-6">
@@ -449,11 +468,19 @@ export function EvaluatorConsole() {
                 ))}
                 <div className="grid gap-1 border-t border-line py-2.5 sm:grid-cols-[13rem_minmax(0,1fr)] sm:gap-6">
                   <dt className="t-label text-graphite">Verdict</dt>
-                  <dd className="t-data font-semibold">PASS · {DEMO_PREDICATE.label}</dd>
+                  <dd className="t-data font-semibold">
+                    {RECEIPT_STATE[issuedStatus(outcome.attestation)].verdict} · {DEMO_PREDICATE.label}
+                  </dd>
                 </div>
                 <div className="grid gap-1 border-t border-line py-2.5 sm:grid-cols-[13rem_minmax(0,1fr)] sm:gap-6">
-                  <dt className="t-label text-graphite">Private data disclosed</dt>
-                  <dd className="t-data">{disclosed ?? 0} bytes</dd>
+                  <dt className="t-label text-graphite">Private plaintext in record</dt>
+                  <dd className="t-data">
+                    {disclosed ?? 0} bytes found
+                    <span className="mt-1 block font-sans text-[0.8125rem] text-graphite">
+                      Scanned for this evaluation&rsquo;s cases, check names, notes, salts and secret. Commitments and
+                      labels are published by design.
+                    </span>
+                  </dd>
                 </div>
               </dl>
               <Link

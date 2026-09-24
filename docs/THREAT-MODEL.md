@@ -58,13 +58,26 @@ A tampered *public* record fails id recomputation on the receipt page
 (tested).
 
 ### 5. Replay
-**Threat.** The same attestation is submitted again, or copied onto another
+**Threat.** The same attestation is submitted again; or the evaluator
+re-attests the same release with a fresh evidence salt (which yields a new
+attestation id, possibly over a different result set); or a record is copied
+onto another contract.
+**Status: prevented per release, within a contract.** The circuit derives
+`releaseKey = H("closedbook:release:v1", model, suite, predicate)` — public
+values only — and asserts it is absent from the `releases` map before
+inserting it. A fresh evidence salt changes the id but not the release key,
+so it is refused. Tested in both the TypeScript model and the compiled
 contract.
-**Status: prevented within a contract.** The id is a ledger map key and the
-circuit asserts it is absent before inserting. Across contracts, the record
-names the evaluator key and predicate; verifiers should check the contract
-address they trust. On a network, Midnight's transaction model additionally
-binds each proof to its transaction.
+**Residual.**
+- A *new suite commitment* (same tests, new salt) is a new release. Verifiers
+  must compare the suite commitment with the one the evaluator published
+  before the evaluation.
+- A release, once attested, cannot be re-attested or revoked on the same
+  contract. Correcting an attestation needs a new suite commitment or a new
+  contract; revocation is out of scope for v1.
+- Across contracts, verifiers must check the contract address they trust. On
+  a network, Midnight's transaction model additionally binds each proof to its
+  transaction.
 
 ### 6. Disclosure risk
 **Threat.** Private data leaks through the public record, refusal messages,
@@ -86,18 +99,26 @@ timing or the UI.
 - Timing of attempts on a network is observable.
 
 ### 7. Fake frontend verification
-**Threat.** A web page shows "verified" for something that was not verified,
-or a forged link claims a Midnight proof.
-**Status: addressed by construction and labelling.**
-- Every record carries `source`; every view renders it.
-- No view renders proof or transaction metadata unless the source is
-  `MIDNIGHT`, and none produces that source today.
-- A receipt recomputes the attestation id from the public fields in the
-  viewer's browser. It is honest about what that means: integrity, not
-  predicate satisfaction.
-- A link whose record claims `MIDNIGHT` is displayed as a **claim**, "not
-  verified by this page".
-**Residual.** A user must trust whichever page recomputes the id — ideally one
+**Threat.** A web page shows "verified" for something that was not verified.
+In particular: anyone can construct a self-consistent record whose id and
+release key recompute, put it in a share link, and hope the receipt shows a
+verified PASS.
+**Status: addressed by explicit receipt states** (`src/lib/attestation/receipt.ts`, tested in `tests/receipt.test.ts`):
+
+| State | Earned when |
+| --- | --- |
+| `ALTERED` | Id, release key or code fails to recompute; wrong reference; or the issuer holds a different record under this id |
+| `CLAIMED PASS` | Self-consistent, but the claimed issuer did not confirm it |
+| `DEMO PASS` | The demo adapter in this browser issued this exact record (a simulated verdict) |
+| `LOCAL CIRCUIT ATTESTED` | The local contract ledger holds this exact record, field for field |
+| `NETWORK VERIFIED` | A network verifier confirmed the proven transaction — **no verifier exists, so unreachable** |
+
+- Only the record's own claimed issuer is asked. A `MIDNIGHT` record is never
+  confirmed by the demo registry or the local ledger.
+- The evaluator key is not part of the attestation id, so a swapped key
+  recomputes cleanly; the issuer comparison catches it (tested).
+- Only `NETWORK VERIFIED` says "verified" without a negation (tested).
+**Residual.** A user must trust whichever page runs these checks — ideally one
 they run themselves (`npm run dev`) or the contract ledger directly.
 
 ### 8. Limits of trusted evaluation input

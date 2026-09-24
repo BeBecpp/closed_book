@@ -153,6 +153,38 @@
       }
     },
     {
+      "name": "deriveReleaseKey",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "model",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "suite",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "predicateId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
       "name": "deriveAttestationId",
       "pure": true,
       "proof": false,
@@ -361,8 +393,22 @@
       }
     },
     {
-      "name": "attestationCount",
+      "name": "releases",
       "index": 4,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "attestationCount",
+      "index": 5,
       "exported": true,
       "storage": "Counter"
     }

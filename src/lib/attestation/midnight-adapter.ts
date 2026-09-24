@@ -16,7 +16,7 @@
  * Server / Node only.
  */
 import { bytes32FromHex, digestManifest, fromHex, toHex } from "../commitments";
-import { CONTRACT_INFO, LocalClosedBookContract } from "../midnight/local-contract";
+import { CONTRACT_INFO, LocalClosedBookContract, pureCircuits } from "../midnight/local-contract";
 import { SOURCE_DISCLAIMER, SOURCE_LABEL, type AttestationAdapter } from "./adapter";
 import { REFUSAL_MESSAGE, STEP_LABEL, type Deployment } from "./demo-adapter";
 import { attestationCode, modelManifest, suiteManifest } from "./evaluation";
@@ -28,10 +28,10 @@ const ASSERTIONS: ReadonlyArray<[string, RefusalReason, AttestStep["key"]]> = [
   ["model commitment mismatch", "MODEL_COMMITMENT_MISMATCH", "model"],
   ["suite commitment mismatch", "SUITE_COMMITMENT_MISMATCH", "suite"],
   ["release predicate not satisfied", "PREDICATE_NOT_SATISFIED", "predicate"],
-  ["attestation already recorded", "ALREADY_RECORDED", "record"],
+  ["release already attested", "RELEASE_ALREADY_ATTESTED", "release"],
 ];
 
-const STEP_ORDER: readonly AttestStep["key"][] = ["evaluator", "model", "suite", "predicate", "record"];
+const STEP_ORDER: readonly AttestStep["key"][] = ["evaluator", "model", "suite", "predicate", "release"];
 
 export function classifyCircuitError(error: unknown): { reason: RefusalReason; failedAt: AttestStep["key"] } | null {
   const message = error instanceof Error ? error.message : String(error);
@@ -65,10 +65,12 @@ export function createMidnightLocalAdapter(options: MidnightLocalAdapterOptions)
     const onLedger = contract.lookup(fromHex(idHex));
     if (!onLedger) return null;
     const m = meta.get(idHex);
+    const releaseKey = pureCircuits.deriveReleaseKey(onLedger.model, onLedger.suite, onLedger.predicate);
     return {
-      version: 1,
+      version: 2,
       id: idHex,
       code: attestationCode(idHex),
+      releaseKey: toHex(releaseKey),
       modelLabel: m?.modelLabel ?? "",
       modelCommitment: toHex(onLedger.model),
       suiteCommitment: toHex(onLedger.suite),
@@ -88,12 +90,13 @@ export function createMidnightLocalAdapter(options: MidnightLocalAdapterOptions)
       steps.push(s);
       onStep?.(s);
     };
-    const refuse = (reason: RefusalReason): AttestOutcome => ({
+    const refuse = (reason: RefusalReason, existing?: { id: string; code: string }): AttestOutcome => ({
       status: "REFUSED",
       reason,
       message: REFUSAL_MESSAGE[reason],
       source: "MIDNIGHT_LOCAL",
       steps,
+      ...(existing ? { existing } : {}),
     });
 
     const { evaluation, target } = request;
@@ -126,6 +129,13 @@ export function createMidnightLocalAdapter(options: MidnightLocalAdapterOptions)
           break;
         }
         emit(key, true);
+      }
+      if (classified.reason === "RELEASE_ALREADY_ATTESTED") {
+        const existing = contract.releaseOf(pureCircuits.deriveReleaseKey(model, suite, contract.ledger.predicate));
+        if (existing) {
+          const hex = toHex(existing);
+          return refuse(classified.reason, { id: hex, code: attestationCode(hex) });
+        }
       }
       return refuse(classified.reason);
     }

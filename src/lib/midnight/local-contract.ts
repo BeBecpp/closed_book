@@ -111,6 +111,12 @@ export class LocalClosedBookContract {
     return l.attestations.member(id) ? l.attestations.lookup(id) : null;
   }
 
+  /** Attestation id recorded for a release key, if any. */
+  releaseOf(releaseKey: Uint8Array): Uint8Array | null {
+    const l = this.ledger;
+    return l.releases.member(releaseKey) ? l.releases.lookup(releaseKey) : null;
+  }
+
   entries(): Array<[Uint8Array, Attestation]> {
     return [...this.ledger.attestations];
   }

@@ -73,9 +73,11 @@ export interface AttestRequest {
 
 /** The public record. This is all a verifier ever receives. */
 export interface PublicAttestation {
-  readonly version: 1;
+  readonly version: 2;
   readonly id: string;
   readonly code: string;
+  /** H("closedbook:release:v1", model, suite, predicate). One attestation per key. */
+  readonly releaseKey: string;
   readonly modelLabel: string;
   readonly modelCommitment: string;
   readonly suiteCommitment: string;
@@ -99,11 +101,11 @@ export type RefusalReason =
   | "MODEL_COMMITMENT_MISMATCH"
   | "SUITE_COMMITMENT_MISMATCH"
   | "UNAUTHORIZED_EVALUATOR"
-  | "ALREADY_RECORDED"
+  | "RELEASE_ALREADY_ATTESTED"
   | "INVALID_INPUT";
 
 export interface AttestStep {
-  readonly key: "evaluator" | "model" | "suite" | "predicate" | "record";
+  readonly key: "evaluator" | "model" | "suite" | "predicate" | "release";
   readonly label: string;
   readonly ok: boolean;
 }
@@ -121,4 +123,6 @@ export type AttestOutcome =
       readonly message: string;
       readonly source: AttestationSource;
       readonly steps: readonly AttestStep[];
+      /** RELEASE_ALREADY_ATTESTED only: the existing public attestation. */
+      readonly existing?: { readonly id: string; readonly code: string };
     };

@@ -15,7 +15,8 @@ pass it on unless it is wrapped in `disclose()`. Every disclosure in
 | `disclose(...)` site | Value | Derived from private data? |
 | --- | --- | --- |
 | constructor | `evaluatorKey`, `predicateId`, `requiredPasses` | No — deployment parameters |
-| `attest` | `id` (map key, and return value) | Yes — hash of commitments incl. evidence commitment |
+| `attest` | release key (`releases` map key) | No — hash of model, suite, predicate |
+| `attest` | `id` (map key, `releases` value, and return value) | Yes — hash of commitments incl. evidence commitment |
 | `attest` | `Attestation { model, suite, predicate, evidence, evaluator }` | `evidence` and `evaluator` are hashes of private data |
 
 Nothing else reaches the ledger. The six results, the digests, the salts and
@@ -61,17 +62,32 @@ found something, invites probing of the build, and — if repeated per check —
 leaks the suite's structure. The only public signal of failure is the absence
 of an attestation.
 
-## Measured, not asserted
+## The leak scan, and what "0 bytes" means
 
 `measureDisclosure()` in `src/lib/attestation/verify.ts` serialises the public
-payload and counts bytes of every private plaintext (cases, check names and
-ids, notes, salts, secret) that appear in it. The UI shows this number; the
-tests require it to be 0 and require a deliberately leaky record to score
-above 0.
+payload and counts the bytes of the evaluation's **configured private
+plaintext** found in it verbatim: every test case, check name and category,
+the suite name, notes, salts and the evaluator secret. Values shorter than
+four characters (the two-letter check ids) are skipped because they would
+match by chance inside hex.
+
+- "0 bytes found" means none of that plaintext appears in the record.
+- It does **not** mean the record is 0 bytes, or that nothing derived from
+  private data is published. The record is several hundred bytes of
+  commitments (hashes of private data), the predicate and labels, by design.
+- It cannot detect a private value that was transformed (encoded, hashed
+  without salt, paraphrased) before leaking. That is what the `disclose()`
+  discipline and the salts are for.
+
+The issuing pages (home demo, evaluator console) run the scan because they
+hold the private evaluation. The public receipt cannot — it states instead
+that the record schema has no field for prompts, outputs or check results.
+Tests require the scan to be 0 for issued records and above 0 for a
+deliberately leaky one.
 
 ## Where the browser stores things
 
-- The demo registry (`localStorage`, key `closedbook.demo.registry.v1`) holds
+- The demo registry (`localStorage`, key `closedbook.demo.registry.v2`) holds
   **public records only**.
 - Private evaluation state lives in React state and is lost on reload.
 - Receipt share links carry the public record in the URL fragment (`#r=`),

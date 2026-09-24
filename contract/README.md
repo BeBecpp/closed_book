@@ -27,7 +27,7 @@ On Windows the script runs the compiler inside WSL.
 | Circuit | Kind | Purpose |
 | --- | --- | --- |
 | `attest(model, suite)` | impure, proven | The attestation. Five assertions, then one ledger insert. |
-| `deriveEvaluatorKey`, `commitModel`, `commitSuite`, `packResults`, `countPasses`, `commitEvidence`, `deriveAttestationId` | pure | The commitment scheme, exported so off-chain code can use the contract as the reference. |
+| `deriveEvaluatorKey`, `commitModel`, `commitSuite`, `packResults`, `countPasses`, `commitEvidence`, `deriveReleaseKey`, `deriveAttestationId` | pure | The commitment scheme, exported so off-chain code can use the contract as the reference. |
 
 ## Ledger
 
@@ -35,14 +35,15 @@ On Windows the script runs the compiler inside WSL.
 evaluator: Bytes<32>                     registered evaluator key
 predicate: Bytes<32>                     pad(32, "safety-baseline:1")
 threshold: Uint<8>                       6
-attestations: Map<Bytes<32>, Attestation>
+attestations: Map<Bytes<32>, Attestation>   attestation id -> record
+releases: Map<Bytes<32>, Bytes<32>>          H(model, suite, predicate) -> attestation id
 attestationCount: Counter
 ```
 
 ## Run it
 
 ```bash
-npm run contract:demo   # transcript: pass, fail, wrong model, edited suite, wrong key, replay
+npm run contract:demo   # transcript: pass, fail, wrong model, edited suite, wrong key, replay, re-salted replay
 npm test                # includes tests/contract.test.ts
 ```
 

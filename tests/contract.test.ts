@@ -34,6 +34,7 @@ describe("TypeScript scheme matches the compiled contract", () => {
       expect(Number(pureCircuits.countPasses(results))).toBe(ts.countPasses(results));
       expect(hex(pureCircuits.commitEvidence(a, b, c, d, e))).toBe(hex(await ts.commitEvidence(a, b, c, d, e)));
       expect(hex(pureCircuits.deriveAttestationId(a, b, c, d))).toBe(hex(await ts.deriveAttestationId(a, b, c, d)));
+      expect(hex(pureCircuits.deriveReleaseKey(a, b, c))).toBe(hex(await ts.deriveReleaseKey(a, b, c)));
     }
   });
 });
@@ -133,13 +134,53 @@ describe("attest circuit", () => {
     expect(out.status === "REFUSED" && out.reason).toBe("UNAUTHORIZED_EVALUATOR");
   });
 
-  it("replay -> attestation already recorded", async () => {
+  it("replay -> release already attested", async () => {
     const a = createMidnightLocalAdapter({ deployment: await deployment() });
     const req = { evaluation: DEMO_EVALUATION, target: await targetFor(DEMO_EVALUATION) };
     expect((await a.attest(req)).status).toBe("ATTESTED");
     const again = await a.attest(req);
-    expect(again.status === "REFUSED" && again.reason).toBe("ALREADY_RECORDED");
+    expect(again.status === "REFUSED" && again.reason).toBe("RELEASE_ALREADY_ATTESTED");
     expect(a.contract.ledger.attestationCount).toBe(1n);
+  });
+
+  it("a fresh evidence salt is refused by the circuit: one attestation per release", async () => {
+    const a = createMidnightLocalAdapter({ deployment: await deployment() });
+    const target = await targetFor(DEMO_EVALUATION);
+    const first = await a.attest({ evaluation: DEMO_EVALUATION, target });
+    if (first.status !== "ATTESTED") throw new Error("expected attestation");
+    for (let i = 0; i < 3; i++) {
+      const again = await a.attest({ evaluation: { ...DEMO_EVALUATION, evidenceSalt: hex(rand()) }, target });
+      expect(again.status).toBe("REFUSED");
+      if (again.status !== "REFUSED") return;
+      expect(again.reason).toBe("RELEASE_ALREADY_ATTESTED");
+      expect(again.existing?.id).toBe(first.attestation.id);
+    }
+    expect(a.contract.ledger.attestationCount).toBe(1n);
+    expect(a.contract.ledger.releases.size()).toBe(1n);
+  });
+
+  it("the releases map binds the release key to the attestation id", async () => {
+    const a = createMidnightLocalAdapter({ deployment: await deployment() });
+    const target = await targetFor(DEMO_EVALUATION);
+    const out = await a.attest({ evaluation: DEMO_EVALUATION, target });
+    if (out.status !== "ATTESTED") throw new Error("expected attestation");
+    const key = await ts.deriveReleaseKey(
+      ts.fromHex(target.modelCommitment),
+      ts.fromHex(target.suiteCommitment),
+      ts.pad32(DEMO_PREDICATE.id),
+    );
+    expect(out.attestation.releaseKey).toBe(hex(key));
+    expect(hex(a.contract.ledger.releases.lookup(key))).toBe(out.attestation.id);
+  });
+
+  it("a newly committed suite is a new release and may be attested", async () => {
+    const a = createMidnightLocalAdapter({ deployment: await deployment() });
+    expect((await a.attest({ evaluation: DEMO_EVALUATION, target: await targetFor(DEMO_EVALUATION) })).status).toBe(
+      "ATTESTED",
+    );
+    const resuited = { ...DEMO_EVALUATION, suiteSalt: hex(rand()) };
+    expect((await a.attest({ evaluation: resuited, target: await targetFor(resuited) })).status).toBe("ATTESTED");
+    expect(a.contract.ledger.releases.size()).toBe(2n);
   });
 
   it("a lower deployed threshold accepts 5/6 (predicate is enforced from the ledger)", async () => {

@@ -28,7 +28,8 @@ Scroll to **§ 01 — Demonstration**.
 - Click **Generate attestation →**. The assertion log runs: evaluator key,
   model binding, suite binding, release predicate, record.
 - Right, on paper: the **public attestation**. Model and suite commitments,
-  `Safety Baseline 1`, **PASS**, `0 bytes` disclosed, and the source label
+  `Safety Baseline 1`, **PASS** stamped *Demo · simulated*, a leak scan that
+  finds `0 bytes` of private plaintext in the record, and the source label
   **DEMO ADAPTER**.
 
 Say: the demo adapter uses the same byte encoding and the same five
@@ -42,6 +43,10 @@ not a zero-knowledge proof, and the page says so.
 - Public side: **Attestation refused.** *The private evaluation does not
   satisfy the release policy. No private evaluation data was disclosed.*
   Which check failed: *Not disclosed.* Prompt / output: *Not disclosed.*
+  Public record: *None written.*
+- Restore the check and generate again: refused — *one attestation per
+  release*, with a link to the existing one. A fresh evidence salt does not
+  create a second. (*Reset the demo ledger in this browser* starts over.)
 
 Say: a failed release does not become a proof. On Midnight, the assertion
 fails inside the circuit, so no proof can exist and nothing reaches the
@@ -67,14 +72,16 @@ npm run contract:demo
 
 prints a transcript of the compiled contract accepting the passing evaluation
 and refusing: a failed check, a wrong model, an edited suite, an unregistered
-key, and a replay.
+key, a replay, and a re-salted replay of the same release.
 
 ## 5. The receipt (30 s)
 
 Click **Open the public receipt →**.
 
-- `CB-XXXXXX`, model build, evaluation suite, predicate, **PASS**, proof line
-  stating exactly what happened, `0 bytes` disclosed.
+- `CB-XXXXXX` with its trust state: **Local circuit attested** for a
+  local-circuit record (found field for field on the local contract ledger),
+  **Demo pass · simulated** for a demo record from this browser. Opened
+  elsewhere, the same link is only **Claimed pass · unverified**.
 - **Checks run in this browser**: id recomputed from the public fields —
   Match. For local-circuit records, the record is looked up on the local
   contract ledger.

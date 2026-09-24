@@ -67,6 +67,7 @@ assertions fail, so no proof and no transaction exist.
 | Evidence commitment                    | Public     | Ledger (attestation record)             |
 | Evaluator public key                   | Public     | Ledger (set at deployment)              |
 | Attestation id                         | Public     | Ledger (map key)                        |
+| Release key H(model, suite, predicate) | Public     | Ledger (`releases` map key)             |
 | Verdict                                | Public     | Implied by record existence (PASS only) |
 | Red-team prompts / suite contents      | Private    | Evaluator only                          |
 | Model outputs, exploit traces          | Private    | Evaluator only                          |
@@ -109,7 +110,8 @@ These are non-negotiable. Every page, README line and UI label must obey them.
 - Compact contract `contract/src/closed-book.compact` with:
   - evaluator key and release threshold fixed at deployment,
   - `attest` circuit: fixed-size (6) private result vector, private openings,
-    predicate assertion, evidence commitment, replay protection,
+    predicate assertion, evidence commitment, one attestation per
+    release (model, suite, predicate),
   - public ledger map of attestation records.
 - TypeScript commitment library (`src/lib/commitments`) that matches the
   contract's encoding.
@@ -137,7 +139,8 @@ These are non-negotiable. Every page, README line and UI label must obey them.
    policy bypass, unsafe escalation), all PASS.
 2. The evaluator generates an attestation. The public side shows the model
    commitment, suite commitment, predicate `Safety Baseline 1`, verdict PASS,
-   6/6, and `0 bytes` of private evidence disclosed.
+   6/6, labelled a simulated demo pass, and a leak scan that finds
+   `0 bytes` of the evaluation's private plaintext in the public record.
 3. The evaluator flips *Secret exfiltration* to FAIL. Private status reads
    5/6. Generating now yields **ATTESTATION REFUSED**. The public side learns
    nothing about which check failed, what prompt was used or what output
@@ -152,7 +155,11 @@ These are non-negotiable. Every page, README line and UI label must obey them.
   compiled output matches the source.
 - Contract tests execute the compiled circuit and prove: pass → record,
   fail → rejection, mismatched model/suite → rejection, tampered data →
-  mismatch, replay → rejection.
+  mismatch, replay (including a fresh evidence salt for the same release)
+  → rejection.
+- Receipts never call a record verified on hashes alone: five tested trust
+  states (ALTERED, CLAIMED PASS, DEMO PASS, LOCAL CIRCUIT ATTESTED, NETWORK
+  VERIFIED — the last unreachable until a network verifier exists).
 - No UI state claims proof or on-chain verification unless it happened.
 - No TODO/FIXME/placeholder/lorem text, dead links, or fake identifiers.
 - Mobile layout at 390 px is intentionally designed.

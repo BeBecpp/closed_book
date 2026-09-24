@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toHex, deriveEvaluatorKey, fromHex } from "@/src/lib/commitments";
+import { toHex, deriveEvaluatorKey, deriveReleaseKey, fromHex, pad32 } from "@/src/lib/commitments";
 import { createDemoAdapter } from "@/src/lib/attestation/demo-adapter";
 import { targetFor } from "@/src/lib/attestation/evaluation";
 import {
@@ -86,7 +86,45 @@ describe("demo adapter", () => {
     const req = { evaluation: DEMO_EVALUATION, target: await targetFor(DEMO_EVALUATION) };
     expect((await a.attest(req)).status).toBe("ATTESTED");
     const again = await a.attest(req);
-    expect(again.status === "REFUSED" && again.reason).toBe("ALREADY_RECORDED");
+    expect(again.status === "REFUSED" && again.reason).toBe("RELEASE_ALREADY_ATTESTED");
+  });
+
+  it("a fresh evidence salt does not buy a second attestation for the same release", async () => {
+    const a = await adapter();
+    const target = await targetFor(DEMO_EVALUATION);
+    const first = await a.attest({ evaluation: DEMO_EVALUATION, target });
+    if (first.status !== "ATTESTED") throw new Error("expected attestation");
+    const resalted = { ...DEMO_EVALUATION, evidenceSalt: `0x${"77".repeat(32)}` };
+    const second = await a.attest({ evaluation: resalted, target });
+    expect(second.status).toBe("REFUSED");
+    if (second.status !== "REFUSED") return;
+    expect(second.reason).toBe("RELEASE_ALREADY_ATTESTED");
+    expect(second.existing).toEqual({ id: first.attestation.id, code: first.attestation.code });
+    expect(second.steps.at(-1)).toMatchObject({ key: "release", ok: false });
+  });
+
+  it("a different suite commitment is a different release", async () => {
+    const a = await adapter();
+    expect((await a.attest({ evaluation: DEMO_EVALUATION, target: await targetFor(DEMO_EVALUATION) })).status).toBe(
+      "ATTESTED",
+    );
+    const resuited = { ...DEMO_EVALUATION, suiteSalt: `0x${"42".repeat(32)}` };
+    const out = await a.attest({ evaluation: resuited, target: await targetFor(resuited) });
+    expect(out.status).toBe("ATTESTED");
+  });
+
+  it("records carry a release key derived from model, suite and predicate", async () => {
+    const a = await adapter();
+    const target = await targetFor(DEMO_EVALUATION);
+    const out = await a.attest({ evaluation: DEMO_EVALUATION, target });
+    if (out.status !== "ATTESTED") throw new Error("expected attestation");
+    const expected = await deriveReleaseKey(
+      fromHex(target.modelCommitment),
+      fromHex(target.suiteCommitment),
+      pad32(DEMO_PREDICATE.id),
+    );
+    expect(out.attestation.version).toBe(2);
+    expect(out.attestation.releaseKey).toBe(toHex(expected));
   });
 
   it("malformed input is refused, not thrown", async () => {
@@ -113,6 +151,11 @@ describe("public verification", () => {
 
     const recoded = { ...out.attestation, code: "CB-000000" };
     expect((await checkRecordIntegrity(recoded)).codeMatches).toBe(false);
+
+    const rereleased = { ...out.attestation, releaseKey: out.attestation.id };
+    const rereleasedReport = await checkRecordIntegrity(rereleased);
+    expect(rereleasedReport.releaseMatches).toBe(false);
+    expect(rereleasedReport.idMatches).toBe(true);
   });
 
   it("tampered private data does not open the evidence commitment", async () => {
@@ -130,6 +173,10 @@ describe("public verification", () => {
     const out = await a.attest({ evaluation: DEMO_EVALUATION, target: await targetFor(DEMO_EVALUATION) });
     if (out.status !== "ATTESTED") throw new Error("expected attestation");
     expect(measureDisclosure(out.attestation, DEMO_EVALUATION)).toBe(0);
+    // The scan measures plaintext leakage, not record size: the record itself
+    // is hundreds of bytes of commitments and labels.
+    expect(JSON.stringify(out.attestation).length).toBeGreaterThan(300);
+    expect(measureDisclosure(null, DEMO_EVALUATION)).toBe(0);
     const leaky = { ...out.attestation, modelLabel: DEMO_EVALUATION.suite.checks[1].cases[0] };
     expect(measureDisclosure(leaky, DEMO_EVALUATION)).toBeGreaterThan(0);
   });

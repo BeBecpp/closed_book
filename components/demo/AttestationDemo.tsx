@@ -6,10 +6,11 @@ import { Row } from "@/components/ui/Row";
 import { Hash } from "@/components/ui/Hash";
 import { RedactedLines, SUITE_REDACTION } from "@/components/ui/Redaction";
 import { SOURCE_LABEL } from "@/src/lib/attestation/adapter";
-import { freshSalt, getDemoAdapter } from "@/src/lib/attestation/browser";
+import { freshSalt, getDemoAdapter, resetDemoLedger } from "@/src/lib/attestation/browser";
 import { targetFor } from "@/src/lib/attestation/evaluation";
 import { encodeRecord } from "@/src/lib/attestation/verify";
 import { DEMO_EVALUATION, DEMO_PREDICATE } from "@/src/lib/demo/fixture";
+import { AlreadyAttested } from "./AlreadyAttested";
 import { StepLog } from "./StepLog";
 import { useAttestation } from "./useAttestation";
 
@@ -38,6 +39,11 @@ export function AttestationDemo() {
 
   function restore() {
     setResults([...ALL_PASS]);
+    reset();
+  }
+
+  async function resetLedger() {
+    await resetDemoLedger();
     reset();
   }
 
@@ -94,7 +100,7 @@ export function AttestationDemo() {
           </Row>
           <Row tone="ink" label="Release condition">
             <p className="flex items-baseline gap-3">
-              <span className={`font-mono text-[1.75rem] leading-none tabular-nums ${passes < 6 ? "text-signal" : ""}`}>
+              <span className={`whitespace-nowrap font-mono text-[1.75rem] leading-none tabular-nums ${passes < 6 ? "text-signal" : ""}`}>
                 {passes} / 6
               </span>
               <span className="t-label text-paper/60">{DEMO_PREDICATE.requiredPasses} required</span>
@@ -147,9 +153,10 @@ export function AttestationDemo() {
                 <Row label="Verdict"><span className="t-data">No attestation issued</span></Row>
                 <Row label="Which check failed"><span className="t-data text-graphite">Not disclosed</span></Row>
                 <Row label="Prompt / output"><span className="t-data text-graphite">Not disclosed</span></Row>
-                <Row label="Private data disclosed"><span className="t-data">{disclosed ?? 0} bytes</span></Row>
+                <Row label="Public record"><span className="t-data">None written</span></Row>
                 <Row label="Source"><span className="t-data">{SOURCE_LABEL[outcome.source]}</span></Row>
               </dl>
+              {outcome.existing && <AlreadyAttested existing={outcome.existing} onReset={resetLedger} />}
               <p className="mt-5 border-t border-line pt-4 text-[0.875rem] text-graphite">
                 A failed release does not become a proof. On a network, the public would see only that no attestation
                 exists for this build.
@@ -176,7 +183,10 @@ export function AttestationDemo() {
                 </Row>
                 <Row label="Verdict">
                   {outcome?.status === "ATTESTED" ? (
-                    <span className="fade-in font-mono text-[1.75rem] font-medium leading-none">PASS</span>
+                    <span className="fade-in flex flex-wrap items-baseline gap-3">
+                      <span className="font-mono text-[1.75rem] font-medium leading-none">PASS</span>
+                      <span className="t-label whitespace-nowrap border border-dashed border-ink px-1.5 py-0.5">Demo · simulated</span>
+                    </span>
                   ) : (
                     <span className="t-data text-graphite">—</span>
                   )}
@@ -186,15 +196,15 @@ export function AttestationDemo() {
                     {outcome?.status === "ATTESTED" ? `${DEMO_PREDICATE.requiredPasses} / ${DEMO_PREDICATE.checkCount}` : "—"}
                   </span>
                 </Row>
-                <Row label="Private data disclosed">
+                <Row label="Private plaintext in record">
                   <span className={`t-data ${disclosed === null ? "text-graphite" : ""}`}>
-                    {disclosed === null ? "—" : `${disclosed} bytes`}
+                    {disclosed === null ? "—" : `${disclosed} bytes found`}
                   </span>
                 </Row>
                 <Row label="Status">
                   {outcome?.status === "ATTESTED" ? (
                     <span className="t-data fade-in">
-                      Attested · <span className="bg-ink px-1.5 py-0.5 text-paper">{SOURCE_LABEL.DEMO}</span>
+                      Demo pass · not a cryptographic attestation · {SOURCE_LABEL.DEMO}
                     </span>
                   ) : (
                     <span className="t-data text-graphite">{error ? `Error: ${error}` : "Nothing published"}</span>
@@ -204,8 +214,9 @@ export function AttestationDemo() {
               {outcome?.status === "ATTESTED" ? (
                 <div className="fade-in mt-5 flex flex-col gap-3 border-t border-ink pt-4 sm:flex-row sm:items-baseline sm:justify-between">
                   <p className="max-w-[40ch] text-[0.8125rem] text-graphite">
-                    Demo adapter: same commitments as the Compact contract, computed in your browser. No
-                    zero-knowledge proof, no chain.
+                    Simulated verdict: the demo adapter runs the contract&rsquo;s checks in your browser. No
+                    zero-knowledge proof, no chain. The plaintext scan looks for the demo&rsquo;s cases, check names,
+                    notes, salts and secret; commitments are published by design.
                   </p>
                   <Link
                     href={`/verify/${outcome.attestation.code}#r=${encodeRecord(outcome.attestation)}`}

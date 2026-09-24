@@ -49,9 +49,9 @@ const THREATS = [
   ["Model-version mismatch", "Prevented. The circuit asserts the private model digest opens the public model commitment. An attestation for build A cannot be presented as one for build B."],
   ["Suite-version mismatch", "Prevented. The suite digest and salt must open the published suite commitment. Editing the suite after publication breaks the binding."],
   ["Tampered result", "Detected. Results are bound into the evidence commitment. A different result set does not open it."],
-  ["Replay", "Prevented. The attestation id is recorded in the contract ledger; the circuit refuses an id that already exists."],
+  ["Replay", "Prevented per release. The circuit allows one attestation per (model, suite, predicate), keyed in the ledger's releases map; a fresh evidence salt changes the id but not the release, and is refused. A newly committed suite is a new release."],
   ["Disclosure", "Minimised. Only values wrapped in disclose() reach the ledger: commitments, predicate, evaluator key and id. Salts stop low-entropy data from being brute-forced from commitments."],
-  ["Fake frontend verification", "Addressed by labelling. Every record states its source. A receipt recomputes the id from public fields in the browser, and never displays a network proof it did not verify."],
+  ["Fake frontend verification", "Addressed by receipt states. Recomputing hashes earns only CLAIMED PASS, because anyone can build a self-consistent record. DEMO PASS and LOCAL CIRCUIT ATTESTED require the record's own issuer to hold it field for field; NETWORK VERIFIED requires a network verifier, which does not exist yet."],
 ] as const;
 
 export default function ProtocolPage() {
@@ -130,6 +130,7 @@ export default function ProtocolPage() {
                   <li>evidence commitment</li>
                   <li>evaluator public key</li>
                   <li>attestation id</li>
+                  <li>release key</li>
                 </ul>
               </div>
               <div className="my-2 h-[6px] bg-ink md:mx-auto md:my-0 md:h-auto md:w-[6px]" aria-hidden="true" />
@@ -182,6 +183,7 @@ export default function ProtocolPage() {
               <Formula name="suiteCommitment">H(&quot;closedbook:suite:v1&quot;, SHA-256(canonical(suite manifest)), suiteSalt)</Formula>
               <Formula name="evidenceCommitment">H(&quot;closedbook:evidence:v1&quot;, model, suite, predicate, pack(results), evidenceSalt)</Formula>
               <Formula name="attestationId">H(&quot;closedbook:attestation:v1&quot;, model, suite, predicate, evidence)</Formula>
+              <Formula name="releaseKey">H(&quot;closedbook:release:v1&quot;, model, suite, predicate)</Formula>
             </dl>
             <p className="mt-4 text-[0.9375rem] text-graphite">
               pack(results) sets bit i when check i passed, little-endian in one 32-byte word. Salts are 32 random bytes.
@@ -219,10 +221,13 @@ assert(countPasses(results) >= threshold, "release predicate not satisfied");`}<
   const results = checkResults();
   assert(countPasses(results) >= threshold, "release predicate not satisfied");
 
+  const release = deriveReleaseKey(model, suite, predicate);
+  assert(!releases.member(disclose(release)), "release already attested");
+
   const evidence = commitEvidence(model, suite, predicate, packResults(results), evidenceSalt());
   const id = deriveAttestationId(model, suite, predicate, evidence);
-  assert(!attestations.member(disclose(id)), "attestation already recorded");
 
+  releases.insert(disclose(release), disclose(id));
   attestations.insert(disclose(id), disclose(Attestation { ... }));
   attestationCount.increment(1);
   return disclose(id);
@@ -241,7 +246,7 @@ assert(countPasses(results) >= threshold, "release predicate not satisfied");`}<
             <ol className="mt-6">
               {[
                 ["Find the record", "Look up the attestation id on the contract ledger (or open a receipt link, which carries the public record)."],
-                ["Recompute the id", "Hash the public fields. A match means the record was not edited after issue."],
+                ["Recompute the id", "Hash the public fields. A match means the record is self-consistent — nothing more. Anyone can build a self-consistent record, so this alone never makes a verdict verified."],
                 ["Check the bindings", "Compare the model commitment with the one the developer published for the release, and the suite commitment with the evaluator's published suite commitment."],
                 ["Check the key", "Confirm the evaluator key is the independent evaluator you expected."],
                 ["Check the proof", "On a Midnight network, the transaction's zero-knowledge proof is verified by the network when it is accepted. The demo and local modes do not produce one, and say so."],
@@ -268,7 +273,7 @@ assert(countPasses(results) >= threshold, "release predicate not satisfied");`}<
                 "They knew a model digest that opens the public model-build commitment.",
                 "They knew a suite digest and salt that open the public suite commitment.",
                 "They held six check results, committed in the evidence commitment, that satisfy the public release predicate.",
-                "This exact attestation has not been recorded before.",
+                "No attestation existed yet for this release: this model build, this suite, this predicate.",
               ].map((t) => (
                 <li key={t} className="flex gap-4 border-b border-line pb-3">
                   <span aria-hidden="true" className="mt-2 inline-block size-2 shrink-0 bg-ink" />

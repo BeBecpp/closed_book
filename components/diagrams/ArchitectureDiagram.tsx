@@ -8,7 +8,7 @@ const MONO = { fontFamily: "var(--font-mono)" } as const;
 const SANS = { fontFamily: "var(--font-sans)" } as const;
 
 const PRIVATE_ITEMS = ["private tests", "private outputs", "private results", "evaluator notes", "salts · secret key"];
-const ASSERTS = ["evaluator key", "model binding", "suite binding", "passes ≥ threshold", "not yet recorded"];
+const ASSERTS = ["evaluator key", "model binding", "suite binding", "passes ≥ threshold", "release not yet attested"];
 const PUBLIC_ITEMS = ["model commitment", "suite commitment", "predicate", "evidence commitment", "evaluator key", "verdict  PASS"];
 const BAR_W = [70, 92, 80, 64, 86];
 
@@ -103,7 +103,7 @@ export function ArchitectureDiagram() {
         <desc id="arch-desc">
           The confidential evaluator holds tests, outputs, results, notes and salts. It passes commitments and a private
           witness to the Compact circuit on Midnight, which asserts the evaluator key, model and suite bindings, the
-          release predicate and replay protection. Only commitments and the verdict are disclosed to the public
+          release predicate and one attestation per release. Only commitments and the verdict are disclosed to the public
           attestation. If an assertion fails, no proof and no record exist.
         </desc>
         <PrivateBox x={0} y={20} w={290} />

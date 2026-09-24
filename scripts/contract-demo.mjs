@@ -103,6 +103,10 @@ attempt("5. Unregistered evaluator key", target, {
   evidenceSalt: new Uint8Array(randomBytes(32)),
 });
 attempt("6. Replay of attempt 1", target, { ...honest, evidenceSalt: salt1 });
+attempt("7. Same release, fresh evidence salt (would be a new attestation id)", target, {
+  ...honest,
+  evidenceSalt: new Uint8Array(randomBytes(32)),
+});
 
 const l = ledger(ctx.currentQueryContext.state);
 console.log(`\nLedger: ${l.attestationCount} attestation(s)`);
@@ -119,6 +123,9 @@ const expectedId =
     pad("safety-baseline:1"),
     H(pad("closedbook:evidence:v1"), model, suite, pad("safety-baseline:1"), (() => { const w = new Uint8Array(32); w[0] = 63; return w; })(), salt1),
   );
-const ok = id && hex(expectedId) === hex(id) && l.attestationCount === 1n;
-console.log(`\nIndependent SHA-256 recomputation of attestation 1: ${ok ? "MATCH" : "MISMATCH"}`);
+const releaseKey = H(pad("closedbook:release:v1"), model, suite, pad("safety-baseline:1"));
+const releaseOk = Boolean(id) && l.releases.member(releaseKey) && hex(l.releases.lookup(releaseKey)) === hex(id);
+console.log(`\nRelease key ${short(releaseKey)} -> ${releaseOk ? "attestation 1" : "MISSING"}`);
+const ok = id && hex(expectedId) === hex(id) && l.attestationCount === 1n && releaseOk;
+console.log(`Independent SHA-256 recomputation of attestation 1 and its release key: ${ok ? "MATCH" : "MISMATCH"}`);
 process.exit(ok ? 0 : 1);

@@ -15,6 +15,7 @@ import {
   countPasses,
   deriveAttestationId,
   deriveEvaluatorKey,
+  deriveReleaseKey,
   digestManifest,
   equalBytes,
   pad32,
@@ -46,7 +47,7 @@ export const REFUSAL_MESSAGE: Record<RefusalReason, string> = {
   MODEL_COMMITMENT_MISMATCH: "The evaluation is not bound to the published model-build commitment.",
   SUITE_COMMITMENT_MISMATCH: "The evaluation is not bound to the published suite commitment.",
   UNAUTHORIZED_EVALUATOR: "The signing key is not the registered evaluator for this contract.",
-  ALREADY_RECORDED: "This exact attestation has already been recorded.",
+  RELEASE_ALREADY_ATTESTED: "This release — model build, suite and predicate — already has an attestation.",
   INVALID_INPUT: "The evaluation record is malformed.",
 };
 
@@ -55,7 +56,7 @@ export const STEP_LABEL: Record<AttestStep["key"], string> = {
   model: "Model-build binding",
   suite: "Suite binding",
   predicate: "Release predicate",
-  record: "Attestation record",
+  release: "Release not yet attested",
 };
 
 export interface DemoAdapterOptions {
@@ -76,12 +77,13 @@ export function createDemoAdapter(options: DemoAdapterOptions): AttestationAdapt
       steps.push(s);
       onStep?.(s);
     };
-    const refuse = (reason: RefusalReason): AttestOutcome => ({
+    const refuse = (reason: RefusalReason, existing?: { id: string; code: string }): AttestOutcome => ({
       status: "REFUSED",
       reason,
       message: REFUSAL_MESSAGE[reason],
       source: "DEMO",
       steps,
+      ...(existing ? { existing } : {}),
     });
 
     const { evaluation, target } = request;
@@ -124,8 +126,16 @@ export function createDemoAdapter(options: DemoAdapterOptions): AttestationAdapt
     step("predicate", predicateOk);
     if (!predicateOk) return refuse("PREDICATE_NOT_SATISFIED");
 
-    // 5. evidence commitment, attestation id, replay check
+    // 5. assert(!releases.member(deriveReleaseKey(model, suite, predicate)))
+    //    One attestation per release: a fresh evidence salt does not help.
     const predicateId = pad32(deployment.predicate.id);
+    const releaseKey = toHex(await deriveReleaseKey(targetModel, targetSuite, predicateId));
+    const existing = registry.findByRelease(releaseKey);
+    if (existing) {
+      step("release", false);
+      return refuse("RELEASE_ALREADY_ATTESTED", { id: existing.id, code: existing.code });
+    }
+
     const evidence = await commitEvidence(
       targetModel,
       targetSuite,
@@ -134,15 +144,12 @@ export function createDemoAdapter(options: DemoAdapterOptions): AttestationAdapt
       evidenceSalt,
     );
     const id = toHex(await deriveAttestationId(targetModel, targetSuite, predicateId, evidence));
-    if (registry.has(id)) {
-      step("record", false);
-      return refuse("ALREADY_RECORDED");
-    }
 
     const attestation: PublicAttestation = {
-      version: 1,
+      version: 2,
       id,
       code: attestationCode(id),
+      releaseKey,
       modelLabel: evaluation.model.buildId,
       modelCommitment: toHex(targetModel),
       suiteCommitment: toHex(targetSuite),
@@ -153,7 +160,7 @@ export function createDemoAdapter(options: DemoAdapterOptions): AttestationAdapt
       issuedAt: now().toISOString(),
     };
     registry.put(attestation);
-    step("record", true);
+    step("release", true);
     return { status: "ATTESTED", attestation, steps };
   }
 

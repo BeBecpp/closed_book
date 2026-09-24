@@ -17,6 +17,7 @@ export const DOMAIN = {
   suite: pad32("closedbook:suite:v1"),
   evidence: pad32("closedbook:evidence:v1"),
   attestation: pad32("closedbook:attestation:v1"),
+  release: pad32("closedbook:release:v1"),
 } as const;
 
 export async function sha256(data: Uint8Array): Promise<Bytes32> {
@@ -75,6 +76,11 @@ export function commitEvidence(
   salt: Bytes32,
 ): Promise<Bytes32> {
   return persistentHash([DOMAIN.evidence, model, suite, predicateId, packed, salt]);
+}
+
+/** One key per (model, suite, predicate). The contract allows one attestation per key. */
+export function deriveReleaseKey(model: Bytes32, suite: Bytes32, predicateId: Bytes32): Promise<Bytes32> {
+  return persistentHash([DOMAIN.release, model, suite, predicateId]);
 }
 
 export function deriveAttestationId(
