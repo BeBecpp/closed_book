@@ -14,7 +14,7 @@ committed in this repository or linked from a CI run.
 | 5/6 cannot be proven | ✅ Refused at the runtime **and** at the ZK constraint layer | `proofs/evidence.json` → `negative` |
 | Public indexer read path | ✅ Against live Preprod | `npm run test:network`, `npm run network:probe` |
 | Network verifier → `NETWORK VERIFIED` | ✅ Implemented and tested on real serialized contract state | `tests/network.test.ts` |
-| Wallet identity + sync | ✅ Local identity; Preprod sync | `npm run network:init`, `npm run network:status` |
+| Wallet identity + sync | ✅ Local identity; the unshielded wallet syncs against Preprod in seconds (balance **0 NIGHT**, checked 2026-09-25). ⚠ The first **full** sync of a fresh wallet is slow: the DUST sub-wallet advanced about 1,700 of 1,562,784 indices per 30 s on the development laptop | `npm run network:init`, `npm run network:status` |
 | **Funding (tNIGHT → DUST)** | ⛔ **Human step:** the faucet is behind a captcha | — |
 | **Deployment to Preprod** | ⛔ Blocked on funding (and a proof server) | no `deployments/preprod.json` |
 | **Network attestation + replay refusal** | ⛔ Blocked on deployment | no `deployments/preprod.attestations.json` |
@@ -82,7 +82,10 @@ secret. Then:
 1. Open <https://midnight-tmnight-preprod.nethermind.dev/>, paste the address,
    solve the captcha, request tNIGHT. **This cannot be automated** (Cloudflare
    Turnstile), and it must not be.
-2. `npm run network:status` — waits for sync, prints NIGHT and DUST balances.
+2. `npm run network:status` — prints the NIGHT balance as soon as the unshielded
+   wallet syncs (seconds). `npm run network:status -- --full` waits for all three
+   sub-wallets. A fresh wallet's first full sync scans the whole chain and can
+   take hours; `MIDNIGHT_SYNC_TIMEOUT_MIN` raises the limit (default 60).
 3. Start a proof server and register NIGHT for DUST (fees):
    ```bash
    docker run -p 6300:6300 midnightntwrk/proof-server:8.1.0

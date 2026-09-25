@@ -211,14 +211,38 @@ const complete = (p: unknown) =>
   typeof (p as { isStrictlyComplete?: unknown })?.isStrictlyComplete === "function" &&
   (p as { isStrictlyComplete: () => boolean }).isStrictlyComplete();
 
-/** Wait until all three sub-wallets report strictly complete sync (bboard wallet-utils). */
-export function synced(ctx: WalletContext, timeoutMs = 15 * 60_000): Promise<FacadeState> {
+type Progress = { appliedIndex?: bigint; highestIndex?: bigint; highestRelevantWalletIndex?: bigint };
+const fmt = (p: unknown) => {
+  const q = (p ?? {}) as Progress;
+  return `${q.appliedIndex ?? "?"}/${q.highestRelevantWalletIndex ?? q.highestIndex ?? "?"}${complete(p) ? " ✓" : ""}`;
+};
+
+/**
+ * Wait until all three sub-wallets report strictly complete sync (bboard
+ * wallet-utils). Prints progress every 30 s so a long first sync is visible;
+ * fails loudly after `timeoutMs` (MIDNIGHT_SYNC_TIMEOUT_MIN, default 60 min).
+ */
+export function synced(ctx: WalletContext, timeoutMs = Number(process.env.MIDNIGHT_SYNC_TIMEOUT_MIN ?? 60) * 60_000): Promise<FacadeState> {
+  let emissions = 0;
+  let last: FacadeState | null = null;
+  const ticker = setInterval(() => {
+    const s = last;
+    console.log(
+      s
+        ? `  sync  shielded ${fmt(s.shielded.state.progress)}  unshielded ${fmt(s.unshielded.progress)}  dust ${fmt(s.dust.state.progress)}  (${emissions} updates)`
+        : "  sync  no wallet state received yet",
+    );
+  }, 30_000);
   return Rx.firstValueFrom(
     ctx.wallet.state().pipe(
+      Rx.tap((s) => {
+        emissions++;
+        last = s;
+      }),
       Rx.filter((s) => complete(s.shielded.state.progress) && complete(s.dust.state.progress) && complete(s.unshielded.progress)),
-      Rx.timeout(timeoutMs),
+      Rx.timeout({ first: timeoutMs, with: () => Rx.throwError(() => new Error(`wallet did not finish syncing within ${timeoutMs / 60_000} min (${emissions} state updates received)`)) }),
     ),
-  );
+  ).finally(() => clearInterval(ticker));
 }
 
 export function balances(state: FacadeState) {
