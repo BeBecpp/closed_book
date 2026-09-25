@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       proving_keys:
-        description: "Also generate ZK proving keys (downloads public parameters; slow)"
+        description: "Generate ZK proving keys and a real proof via the Midnight proof server (network downloads; slow)"
         type: boolean
         default: false
 
@@ -51,8 +51,8 @@ jobs:
       - name: Committed compiled output matches the source
         run: git diff --exit-code -- contract/src/managed
 
-  proving-keys:
-    name: Generate proving keys
+  zk-proof:
+    name: Proving keys + real ZK proof
     if: github.event_name == 'workflow_dispatch' && inputs.proving_keys
     runs-on: ubuntu-latest
     steps:
@@ -65,5 +65,34 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - run: node scripts/compile-contract.mjs --full
-      - run: ls -la contract/build/closed-book/keys
+          cache: npm
+      - run: npm ci
+      - name: Full compile (proving keys)
+        run: npm run contract:compile:full
+      - name: Record key material
+        run: |
+          ls -la contract/build/closed-book/keys contract/build/closed-book/zkir
+          sha256sum contract/build/closed-book/keys/* contract/build/closed-book/zkir/*
+          grep -m1 -o "avx2" /proc/cpuinfo || echo "no avx2"
+      - name: Start Midnight proof server 8.1.0
+        run: |
+          docker run -d --name proof-server -p 6300:6300 midnightntwrk/proof-server:8.1.0
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:6300/ready && break; sleep 5; done
+          curl -sf http://127.0.0.1:6300/version
+      - name: Real proof (6/6) and refused proof (5/6)
+        run: npm run proof:demo -- --server http://127.0.0.1:6300
+      - name: Proof server log
+        if: always()
+        run: docker logs proof-server 2>&1 | tail -50
+      - uses: actions/upload-artifact@v4
+        with:
+          name: closed-book-proving-keys
+          path: |
+            contract/build/closed-book/keys
+            contract/build/closed-book/zkir
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: closed-book-proof-evidence
+          path: proofs
+          retention-days: 90

@@ -13,7 +13,8 @@
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
     "contract:compile": "node scripts/compile-contract.mjs",
     "contract:compile:full": "node scripts/compile-contract.mjs --full",
-    "contract:demo": "node scripts/contract-demo.mjs"
+    "contract:demo": "node scripts/contract-demo.mjs",
+    "proof:demo": "node scripts/proof-demo.mjs"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
@@ -23,6 +24,8 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@midnight-ntwrk/ledger-v8": "8.1.0",
+    "@midnight-ntwrk/zkir-v2": "2.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.13.6",
     "@types/react": "^19",

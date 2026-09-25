@@ -45,3 +45,6 @@ next-env.d.ts
 
 # local agent/editor config
 /.claude/
+
+# zk parameters (public SRS, fetched on demand)
+/.cache/
