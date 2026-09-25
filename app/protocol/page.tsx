@@ -51,7 +51,7 @@ const THREATS = [
   ["Tampered result", "Detected. Results are bound into the evidence commitment. A different result set does not open it."],
   ["Replay", "Prevented per release. The circuit allows one attestation per (model, suite, predicate), keyed in the ledger's releases map; a fresh evidence salt changes the id but not the release, and is refused. A newly committed suite is a new release."],
   ["Disclosure", "Minimised. Only values wrapped in disclose() reach the ledger: commitments, predicate, evaluator key and id. Salts stop low-entropy data from being brute-forced from commitments."],
-  ["Fake frontend verification", "Addressed by receipt states. Recomputing hashes earns only CLAIMED PASS, because anyone can build a self-consistent record. DEMO PASS and LOCAL CIRCUIT ATTESTED require the record's own issuer to hold it field for field; NETWORK VERIFIED requires a network verifier, which does not exist yet."],
+  ["Fake frontend verification", "Addressed by receipt states. Recomputing hashes earns only CLAIMED PASS, because anyone can build a self-consistent record. DEMO PASS and LOCAL CIRCUIT ATTESTED require the record's own issuer to hold it field for field; NETWORK VERIFIED requires the deployed contract to hold the record field for field, which needs a deployment (not done yet)."],
 ] as const;
 
 export default function ProtocolPage() {
@@ -324,8 +324,13 @@ assert(countPasses(results) >= threshold, "release predicate not satisfied");`}<
                   <td className="t-label py-3">Working locally</td>
                 </tr>
                 <tr className="border-b border-line">
+                  <td className="t-data py-3 pr-4">ZK PROOF (OFFLINE)</td>
+                  <td className="py-3 pr-4 text-graphite">Real proof of one <code className="t-data">attest</code> call from the compiled circuit: proving keys from CI, official proof server 8.1.0 and WASM prover. 5/6 cannot be proven. Not bound to a transaction.</td>
+                  <td className="t-label py-3">Generated</td>
+                </tr>
+                <tr className="border-b border-line">
                   <td className="t-data py-3 pr-4">MIDNIGHT · NETWORK</td>
-                  <td className="py-3 pr-4 text-graphite">Proven transaction on a Midnight network via proof server and wallet.</td>
+                  <td className="py-3 pr-4 text-graphite">Proven transaction on a Midnight network via proof server and wallet. Scripts and the receipt verifier exist; deployment waits on a funded wallet.</td>
                   <td className="t-label py-3"><Flag>Not deployed</Flag></td>
                 </tr>
               </tbody>

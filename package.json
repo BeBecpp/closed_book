@@ -14,7 +14,15 @@
     "contract:compile": "node scripts/compile-contract.mjs",
     "contract:compile:full": "node scripts/compile-contract.mjs --full",
     "contract:demo": "node scripts/contract-demo.mjs",
-    "proof:demo": "node scripts/proof-demo.mjs"
+    "proof:demo": "node scripts/proof-demo.mjs",
+    "test:network": "node scripts/test-network.mjs",
+    "network:init": "tsx scripts/midnight/init.mts",
+    "network:status": "tsx scripts/midnight/status.mts",
+    "network:dust": "tsx scripts/midnight/dust.mts",
+    "network:deploy": "tsx scripts/midnight/deploy.mts",
+    "network:attest": "tsx scripts/midnight/attest.mts",
+    "network:verify": "tsx scripts/midnight/verify.mts",
+    "network:probe": "tsx scripts/midnight/probe-indexer.mts"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
@@ -25,20 +33,37 @@
   },
   "devDependencies": {
     "@midnight-ntwrk/ledger-v8": "8.1.0",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+    "@midnight-ntwrk/wallet-sdk": "1.2.0",
     "@midnight-ntwrk/zkir-v2": "2.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24.13.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
+    "rxjs": "7.8.2",
     "tailwindcss": "^4",
+    "tsx": "4.23.15",
     "typescript": "^5",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "ws": "8.21.3"
   },
   "description": "Privacy-preserving safety attestation for AI releases, built on Midnight.",
   "license": "MIT",
   "engines": {
     "node": ">=22.15"
+  },
+  "overrides": {
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
   }
 }

@@ -1,0 +1,78 @@
+{
+  "generatedAt": "2026-09-25T06:31:30.331Z",
+  "gitCommit": "5203a5a40c15056fa75b8db805dbc48b142c7af0",
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "win32-x64",
+    "ci": false
+  },
+  "toolchain": {
+    "compact": "0.31.1",
+    "compactRuntime": "0.16.0",
+    "zkirV2": "2.1.0",
+    "ledgerV8": "8.1.0",
+    "proofServer": null
+  },
+  "circuit": {
+    "name": "attest",
+    "k": 16,
+    "proverKey": {
+      "bytes": 19485981,
+      "sha256": "9edb23dba3d801fae275b8109e37d9de4ec0624db0434ab9c98265deea19cc7a"
+    },
+    "verifierKey": {
+      "bytes": 2119,
+      "sha256": "ef267dc28849d018e6f04dafa9efbb945ab2b319f2cb859d619a5688647cf6d1"
+    },
+    "bzkir": {
+      "bytes": 1002,
+      "sha256": "7a0bad9cfb558042ec8ade0552e68001e231c3d0f2aad35ba3c80cc3bab19184"
+    }
+  },
+  "statement": {
+    "note": "Deterministic demo evaluation. Public inputs of the call; the witness is not recorded here.",
+    "evaluatorKey": "0x9b91083379ab1407cc81a915845812fac0599cef099238f9840d4be44fbb85c2",
+    "modelCommitment": "0xd8d390ffdcaab15db244503be64dbe618d90b6eea06886b815330c0c41ac58da",
+    "suiteCommitment": "0x0ec0ba22d7a9b8298b14017fcdc671f0023a4e5152db6cfed376e7888fa5ee51",
+    "predicate": "safety-baseline:1",
+    "threshold": 6,
+    "attestationId": "0x723d542ce3cab7fcfffcd63311d507851c9243e6b99b6c8b9fdacbec0315fe64",
+    "releaseKey": "0xd22872a8b6c08b3c53e81e6564e0894e69ffa681976dedf998a44253f65e4d07"
+  },
+  "params": {
+    "bls_midnight_2p16": {
+      "bytes": 12583300,
+      "sha256": "09c877216d6589b370263e18af40a030a901b41a7a7c37ef58c9901db41f05c6"
+    }
+  },
+  "success": {
+    "results": "6/6",
+    "preimage": {
+      "bytes": 941,
+      "sha256": "4d01b23ee2c0db3a2838d361e0863d65b7eb477ba04938f8dfeb2480ba6991dd"
+    },
+    "wasm": {
+      "file": "attest-6of6.wasm.proof",
+      "bytes": 4501,
+      "sha256": "f18d236c88d4389182ff9b9ca35e8efb692e3681cf825dad6447669e73023b07",
+      "seconds": 301.766
+    }
+  },
+  "negative": {
+    "runtime": {
+      "refused": true,
+      "error": "failed assert: release predicate not satisfied"
+    },
+    "wasmCheck": {
+      "rejected": true,
+      "error": "Failed direct assertion"
+    },
+    "wasmProve": {
+      "proof": false,
+      "error": "Failed direct assertion"
+    },
+    "controlThreshold5": {
+      "constraintsSatisfied": true
+    }
+  }
+}

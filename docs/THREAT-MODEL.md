@@ -111,7 +111,7 @@ verified PASS.
 | `CLAIMED PASS` | Self-consistent, but the claimed issuer did not confirm it |
 | `DEMO PASS` | The demo adapter in this browser issued this exact record (a simulated verdict) |
 | `LOCAL CIRCUIT ATTESTED` | The local contract ledger holds this exact record, field for field |
-| `NETWORK VERIFIED` | A network verifier confirmed the proven transaction — **no verifier exists, so unreachable** |
+| `NETWORK VERIFIED` | The configured contract (identified by its `attest` verifier-key hash) holds this exact record, field for field, including `releases[releaseKey] = id`. Unreachable until a deployment is committed. |
 
 - Only the record's own claimed issuer is asked. A `MIDNIGHT` record is never
   confirmed by the demo registry or the local ledger.

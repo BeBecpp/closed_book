@@ -12,10 +12,11 @@
  *                            exact record. A simulated verdict.
  *   LOCAL_CIRCUIT_ATTESTED   The compiled Compact contract on this machine
  *                            holds this exact record in its ledger. No proof.
- *   NETWORK_VERIFIED         A network verifier confirmed the proven
- *                            transaction. No such verifier exists in this
- *                            repository, so this state is currently
- *                            unreachable.
+ *   NETWORK_VERIFIED         The configured CLOSED BOOK contract on a
+ *                            Midnight network holds this exact record
+ *                            (./network-verifier.ts). Reachable only when a
+ *                            deployment record is committed and the network
+ *                            answers.
  */
 import type { IntegrityReport } from "./verify";
 import type { PublicAttestation } from "./types";
@@ -63,9 +64,10 @@ export function issuerCheck(record: PublicAttestation, held: PublicAttestation |
 }
 
 /**
- * Confirms a MIDNIGHT record against the network: the proven transaction and
- * the contract's ledger entry. Must not return "match" unless a real proof
- * was verified. No implementation exists in this repository.
+ * Confirms a MIDNIGHT record against the network: the configured contract's
+ * identity and its ledger entry for the record. Must not return "match"
+ * unless the contract holds the record exactly. Implemented by
+ * judgeNetworkRecord in ./network-verifier.ts over public indexer state.
  */
 export type NetworkVerifier = (record: PublicAttestation) => Promise<IssuerCheck>;
 
@@ -74,7 +76,7 @@ export interface IssuerLookups {
   readonly demo: (id: string) => Promise<PublicAttestation | null>;
   /** The local contract ledger, or null when not reachable from this page. */
   readonly local: ((id: string) => Promise<PublicAttestation | null>) | null;
-  /** Null until a real network verifier exists. */
+  /** Null when this site has no deployed contract configured. */
   readonly network: NetworkVerifier | null;
 }
 
@@ -120,7 +122,8 @@ export const RECEIPT_STATE: Record<ReceiptStatus, ReceiptStateCopy> = {
   NETWORK_VERIFIED: {
     stamp: "Network verified",
     verdict: "PASS",
-    meaning: "A Midnight network verified the zero-knowledge proof for this attestation.",
+    meaning:
+      "The deployed CLOSED BOOK contract on a Midnight network holds this exact record. The network verified the transaction's zero-knowledge proof before the contract recorded it; this page read the public contract state and compared every field.",
   },
   LOCAL_CIRCUIT_ATTESTED: {
     stamp: "Local circuit attested",

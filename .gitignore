@@ -48,3 +48,6 @@ next-env.d.ts
 
 # zk parameters (public SRS, fetched on demand)
 /.cache/
+
+# Midnight network identity and encrypted private state (never commit)
+/.midnight/

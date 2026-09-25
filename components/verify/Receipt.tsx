@@ -8,6 +8,8 @@ import { Bar } from "@/components/ui/Redaction";
 import { SOURCE_LABEL } from "@/src/lib/attestation/adapter";
 import { getDemoAdapter } from "@/src/lib/attestation/browser";
 import { createLocalCircuitClient, probeLocalCircuit } from "@/src/lib/attestation/local-circuit-client";
+import { getNetworkStatus, lookupNetwork } from "@/src/lib/attestation/network-client";
+import { judgeNetworkRecord } from "@/src/lib/attestation/network-verifier";
 import {
   checkIssuer,
   classifyReceipt,
@@ -19,7 +21,7 @@ import type { PublicAttestation } from "@/src/lib/attestation/types";
 import { checkRecordIntegrity, decodeRecord, encodeRecord, type IntegrityReport } from "@/src/lib/attestation/verify";
 import { Flag } from "@/components/ui/Flag";
 
-type Origin = "link" | "browser" | "local-ledger";
+type Origin = "link" | "browser" | "local-ledger" | "network";
 
 type State =
   | { kind: "loading" }
@@ -38,6 +40,7 @@ const ORIGIN_LABEL: Record<Origin, string> = {
   link: "Carried in this link",
   browser: "Demo registry in this browser",
   "local-ledger": "Local contract ledger",
+  network: "Network attestation index of this site (verified against the contract below)",
 };
 
 function matchesReference(record: PublicAttestation, reference: string) {
@@ -70,16 +73,31 @@ async function resolve(reference: string): Promise<State> {
     record = await client.lookup(reference);
     origin = "local-ledger";
   }
+  const network = await getNetworkStatus();
+  if (!record && network.configured) {
+    searched.push(`${network.label} contract`);
+    record = (await lookupNetwork(reference))?.record ?? null;
+    origin = "network";
+  }
   if (!record) return { kind: "missing", searched };
 
   const integrity = await checkRecordIntegrity(record);
   const referenceMatches = matchesReference(record, reference);
-  // Only the record's own claimed issuer is asked. There is no network
-  // verifier in this repository, so MIDNIGHT records stay claims.
+  // Only the record's own claimed issuer is asked. MIDNIGHT records can be
+  // confirmed only when this site is configured with a deployed contract.
   const issuer = await checkIssuer(record, {
     demo: (id) => demo.lookup(id),
     local: local.available ? (id) => client.lookup(id) : null,
-    network: null,
+    // Only when this site is configured with a deployed contract. The server
+    // reads public contract state from the Midnight indexer; the judgement
+    // (every ledger field against this record) runs here.
+    network: network.configured
+      ? async (r) => {
+          const found = await lookupNetwork(r.id);
+          if (!found?.view) return "unreachable";
+          return judgeNetworkRecord(r, found.deployment, found.view).check;
+        }
+      : null,
   });
   const status = classifyReceipt(record, { integrity, referenceMatches, issuer });
   return { kind: "found", record, origin, integrity, referenceMatches, issuer, status };
@@ -121,12 +139,19 @@ const ok = (b: boolean): CheckResult => (b ? "match" : "mismatch");
 const ISSUER_LABEL: Record<PublicAttestation["source"], string> = {
   DEMO: "The demo registry in this browser holds this exact record",
   MIDNIGHT_LOCAL: "The local contract ledger holds this exact record",
-  MIDNIGHT: "A Midnight network verifier confirmed the proven transaction",
+  MIDNIGHT: "The deployed Midnight contract holds this exact record",
 };
 
 function issuerDetail(record: PublicAttestation, issuer: IssuerCheck): string {
+  if (record.source === "MIDNIGHT" && issuer === "match") {
+    return "Read from the contract's public state on the network indexer and compared field by field, including the release key. The network verified the transaction's proof before the contract recorded it.";
+  }
+  if (record.source === "MIDNIGHT" && issuer === "mismatch") return "The contract holds a different record under this id.";
+  if (record.source === "MIDNIGHT" && issuer === "absent") {
+    return "The configured contract does not hold this record, or the record names a different contract.";
+  }
   if (record.source === "MIDNIGHT") {
-    return "No network verifier is configured in this repository, so this cannot be confirmed here.";
+    return "This site has no deployed contract configured, or the network is unavailable, so this cannot be confirmed here.";
   }
   if (issuer === "unreachable") return "The local contract that would hold this record is not reachable from this page.";
   if (issuer === "absent") {
@@ -139,7 +164,7 @@ function issuerDetail(record: PublicAttestation, issuer: IssuerCheck): string {
 }
 
 function proofLine(record: PublicAttestation, status: ReceiptStatus): string {
-  if (status === "NETWORK_VERIFIED") return "Verified on a Midnight network";
+  if (status === "NETWORK_VERIFIED") return "Recorded by the Midnight contract after network proof verification";
   if (record.source === "MIDNIGHT") return "Claimed · not verified by this page";
   if (record.source === "MIDNIGHT_LOCAL") return "Not generated · circuit executed locally";
   return "None · demo adapter";
@@ -301,6 +326,14 @@ function Found({ state }: { state: Extract<State, { kind: "found" }> }) {
         <Line label="Evaluator key">{record.evaluatorKey}</Line>
         <Line label="Release key">{record.releaseKey}</Line>
         <Line label="Attestation id">{record.id}</Line>
+        {record.network && (
+          <>
+            <Line label="Network">{record.network.network}</Line>
+            <Line label="Contract">{record.network.contractAddress}</Line>
+            <Line label="Transaction">{record.network.txId}</Line>
+            {record.network.blockHeight !== null && <Line label="Block">{String(record.network.blockHeight)}</Line>}
+          </>
+        )}
         {record.circuit && (
           <Line label="Circuit">
             {record.circuit.contract} · {record.circuit.circuit} · compiler {record.circuit.compiler} · runtime{" "}
@@ -341,9 +374,13 @@ function Found({ state }: { state: Extract<State, { kind: "found" }> }) {
             detail={issuerDetail(record, issuer)}
           />
           <Check
-            label="Zero-knowledge proof verified"
+            label="Proof verified by the Midnight network"
             result={status === "NETWORK_VERIFIED" ? "match" : "unavailable"}
-            detail="Requires a proven transaction on a Midnight network. This repository has not produced one."
+            detail={
+              status === "NETWORK_VERIFIED"
+                ? "The network verified the transaction's zero-knowledge proof when it accepted it; the record exists on the contract only because of that. This page does not re-run a SNARK verifier."
+                : "Requires a transaction accepted by a Midnight network and a contract that holds this record."
+            }
           />
         </ul>
         <p className="mt-2 text-[0.8125rem] text-graphite">Source of this copy: {ORIGIN_LABEL[state.origin]}.</p>

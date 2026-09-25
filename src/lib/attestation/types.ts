@@ -1,3 +1,5 @@
+import type { NetworkAttestationMeta } from "../midnight/network";
+
 /**
  * Types for the attestation boundary. The UI depends only on these and on
  * the AttestationAdapter interface in ./adapter.ts.
@@ -94,6 +96,8 @@ export interface PublicAttestation {
     readonly runtime: string;
     readonly proof: "NOT_GENERATED";
   };
+  /** Present only for MIDNIGHT (network): where the transaction was recorded. */
+  readonly network?: NetworkAttestationMeta;
 }
 
 export type RefusalReason =

@@ -47,7 +47,7 @@ marketing.
 | `CLAIMED PASS` | Self-consistent, but its claimed issuer did not confirm it (a share link from elsewhere, an unreachable local ledger, or any `MIDNIGHT` record) | PASS · claimed, not verified |
 | `DEMO PASS` | The demo adapter in this browser issued this exact record | PASS · simulated |
 | `LOCAL CIRCUIT ATTESTED` | Self-consistent, reference matches, and the local contract ledger holds this exact record field for field | PASS · local circuit (no ZK proof) |
-| `NETWORK VERIFIED` | A network verifier confirmed the proven transaction. **No verifier exists in this repository, so this state is unreachable today.** | PASS |
+| `NETWORK VERIFIED` | The deployed contract holds this exact record (read from public network state). Unreachable until a deployment is committed. | PASS |
 
 Only `NETWORK VERIFIED` may use the word "verified" without a negation.
 
@@ -57,7 +57,10 @@ Only `NETWORK VERIFIED` may use the word "verified" without a negation.
 | --- | --- | --- |
 | DEMO | DEMO ADAPTER | Computed in your browser. No zero-knowledge proof, no chain. |
 | MIDNIGHT_LOCAL | MIDNIGHT · LOCAL CIRCUIT | The compiled Compact contract ran on this machine. No proof was generated; nothing was submitted. |
-| MIDNIGHT | MIDNIGHT · NETWORK | A proven transaction on a Midnight network. (Not deployed.) |
+| MIDNIGHT | MIDNIGHT · NETWORK | A proven transaction recorded by the CLOSED BOOK contract on a Midnight network. (Not deployed yet.) |
+
+When NETWORK VERIFIED, say *"Recorded by the Midnight contract after network
+proof verification."* Never say the page itself verified the proof.
 
 ## Words we use carefully
 

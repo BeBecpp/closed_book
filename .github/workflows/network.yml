@@ -1,0 +1,68 @@
+name: Midnight network
+
+# Manual only. Runs one CLOSED BOOK network step on a runner with the
+# official proof server next to it (the proof server receives private witness
+# data, so it runs inside this job, never as a shared service).
+#
+# Requires repository secrets (values from `npm run network:init`):
+#   MIDNIGHT_WALLET_SEED, CLOSEDBOOK_EVALUATOR_SECRET, CLOSEDBOOK_PRIVATE_STATE_PASSWORD
+# and a wallet funded from the official faucet (captcha; human step).
+
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: "Network step"
+        type: choice
+        options: [status, dust, deploy, attest, verify]
+        default: status
+      network:
+        description: "Midnight network"
+        type: choice
+        options: [preprod, preview]
+        default: preprod
+
+permissions:
+  contents: read
+
+jobs:
+  network:
+    name: network:${{ inputs.step }} (${{ inputs.network }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MIDNIGHT_NETWORK: ${{ inputs.network }}
+      MIDNIGHT_PROOF_SERVER: http://127.0.0.1:6300
+      MIDNIGHT_WALLET_SEED: ${{ secrets.MIDNIGHT_WALLET_SEED }}
+      CLOSEDBOOK_EVALUATOR_SECRET: ${{ secrets.CLOSEDBOOK_EVALUATOR_SECRET }}
+      CLOSEDBOOK_PRIVATE_STATE_PASSWORD: ${{ secrets.CLOSEDBOOK_PRIVATE_STATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: midnightntwrk/setup-compact-action@836895c8fffbbea6bd986af2b17e8941ff29d1f8
+        if: inputs.step == 'deploy' || inputs.step == 'attest'
+        with:
+          compact-version: "0.31.1"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Full compile (proving keys)
+        if: inputs.step == 'deploy' || inputs.step == 'attest'
+        run: npm run contract:compile:full
+      - name: Start Midnight proof server 8.1.0
+        if: inputs.step != 'verify' && inputs.step != 'status'
+        run: |
+          docker run -d --name proof-server -p 6300:6300 midnightntwrk/proof-server:8.1.0
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:6300/ready && break; sleep 5; done
+          curl -sf http://127.0.0.1:6300/version
+      - name: npm run network:${{ inputs.step }}
+        run: npm run network:${{ inputs.step }}
+      - uses: actions/upload-artifact@v4
+        if: always() && (inputs.step == 'deploy' || inputs.step == 'attest')
+        with:
+          name: closed-book-${{ inputs.network }}-${{ inputs.step }}
+          path: deployments
+          if-no-files-found: ignore

@@ -27,13 +27,14 @@ This project states exactly what works and what doesn't.
 | --- | --- |
 | Compact contract ([`closed-book.compact`](contract/src/closed-book.compact)) | ✅ Compiles with toolchain 0.31.1. CI recompiles it on every push and fails if the committed output drifts. |
 | Circuit logic | ✅ Runs through `@midnight-ntwrk/compact-runtime` in the tests, a CLI transcript and the web console. |
-| Web app: demo, evaluator console, receipt, protocol | ✅ Working. 61 tests. |
-| Zero-knowledge proof generation | ❌ Not done. Proving keys have not been generated ([why](#15-limitations)). |
-| Midnight network deployment | ❌ Not done. No contract address, no transaction, no explorer link. |
+| Web app: demo, evaluator console, receipt, protocol | ✅ Working. 77 tests (+3 opt-in live-network tests). |
+| Proving keys and a real ZK proof | ✅ Keys generated in CI. A real proof of the 6/6 case, produced by the official proof server and the WASM prover; 5/6 is refused at the ZK layer ([evidence](docs/NETWORK.md)). |
+| Network verifier (receipt → *Network verified*) | ✅ Implemented and tested on real contract-state bytes. It has nothing to verify until a contract is deployed. |
+| Midnight network deployment | ❌ Not done. Blocked on funding a wallet (faucet captcha, a human step). No contract address, no transaction. |
 
 Nothing on screen pretends otherwise. Every record says where it came from,
-and no receipt can show "network verified" until a real network verifier
-exists.
+and no receipt can show "network verified" unless a deployed CLOSED BOOK
+contract holds that exact record.
 
 ## Quick start
 
@@ -290,7 +291,7 @@ fails loudly if it can't find a compiler; it never skips.
 ## 11. Test
 
 ```bash
-npm run test      # 61 tests
+npm run test      # 77 tests (live-network tests: npm run test:network)
 npm run verify    # lint → typecheck → test → production build
 ```
 
@@ -331,7 +332,8 @@ A receipt at `/verify/CB-XXXXXX` works in three steps:
    anyone can construct a self-consistent record.
 3. **Ask the issuer.** Ask the record's own claimed issuer whether it holds
    this exact record, field for field: the demo registry in this browser, the
-   local contract ledger, or a network verifier (none exists yet).
+   local contract ledger, or the deployed network contract (only when a
+   deployment is committed; see [docs/NETWORK.md](docs/NETWORK.md)).
 
 The receipt then shows exactly one state:
 
@@ -341,7 +343,7 @@ The receipt then shows exactly one state:
 | **Claimed pass** | Self-consistent, but its issuer did not confirm it. This covers a link from elsewhere, an unreachable local ledger, and any network claim. | PASS · claimed, not verified |
 | **Demo pass** | The demo adapter in this browser issued this exact record | PASS · simulated |
 | **Local circuit attested** | The local contract ledger holds this exact record | PASS · local circuit, no ZK proof |
-| **Network verified** | A network verifier confirmed the proven transaction. *No verifier exists yet, so no receipt can reach this state.* | PASS |
+| **Network verified** | The deployed contract holds this exact record, which it can only do after the network verified the transaction's proof. *Nothing is deployed yet, so no receipt reaches this state today.* | PASS |
 
 An auditor handed the private opening `(results, evidenceSalt)` can check it
 against the public evidence commitment; a tampered result set won't match.
@@ -357,21 +359,21 @@ The full specification is in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 | Tampered result | Detected by the evidence commitment and id recomputation |
 | Replay | Prevented per release (assertion 5). A fresh evidence salt changes the id, not the release, and is refused. |
 | Disclosure | Minimised: salts, `disclose()` discipline, no FAIL records. Issuing pages scan each record for the evaluation's private plaintext and find 0 bytes. |
-| Fake frontend verification | Recomputing hashes earns only *Claimed pass*. Nothing reaches *Network verified* without a network verifier. |
+| Fake frontend verification | Recomputing hashes earns only *Claimed pass*. Nothing reaches *Network verified* unless the deployed contract holds the record, field for field. |
 
 The full analysis, including what each defence does not cover, is in
 [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md).
 
 ## 15. Limitations
 
-- **No zero-knowledge proofs yet.** The proving-key generator needs a CPU with
-  AVX2 and crashes with SIGILL on the development machine (an Intel Ivy Bridge
-  laptop). CI can generate keys when the workflow is run manually with
-  `proving_keys`; that job has not been run yet.
-- **No Midnight network deployment.** The steps are listed in
-  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#path-to-a-midnight-network-deployment).
-  After deployment, the one missing piece is a `NetworkVerifier`; the contract
-  and the adapter interface don't need to change.
+- **Proofs are standalone.** The real proofs in `proofs/` are not bound to a
+  transaction and were never submitted. Proving keys need an AVX2 CPU; the
+  development laptop (Ivy Bridge) can't generate them, so they come from CI.
+- **No Midnight network deployment.** Funding a wallet needs a human (faucet
+  captcha). After that, deploy, attest and verify are scripted
+  ([docs/NETWORK.md](docs/NETWORK.md)). Browser submission through the Lace
+  wallet is not implemented; network attestations are submitted from the
+  evaluator's machine.
 - **What it does not prove.** The model is not executed in a circuit. Nothing
   proves the evaluation took place, that the results are true, or that the
   suite is any good. Nothing proves the deployed service runs the evaluated

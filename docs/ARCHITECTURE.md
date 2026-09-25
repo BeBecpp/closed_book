@@ -77,14 +77,15 @@ Every record carries its `source`. The UI renders the source label on every
 public record and receipt. A `source` is a claim, not a verdict: the receipt
 earns one of five trust states (`src/lib/attestation/receipt.ts`) by asking
 the record's own issuer whether it holds that exact record. Hashes that
-recompute earn only `CLAIMED PASS`. Proof metadata is shown as verified only
-in `NETWORK VERIFIED`, which needs a `NetworkVerifier` that does not exist yet.
+recompute earn only `CLAIMED PASS`. `NETWORK VERIFIED` requires the deployed
+contract to hold the record exactly (`src/lib/attestation/network-verifier.ts`
+over public indexer state), which needs a committed deployment record.
 
 | Source | Produced by | What actually happens | Proof | On chain |
 | --- | --- | --- | --- | --- |
 | `DEMO` | `demo-adapter.ts` | TypeScript runs the same five assertions over the same bytes | No | No |
 | `MIDNIGHT_LOCAL` | `midnight-adapter.ts` | The compiled Compact circuit executes; ledger state is updated in-process | No | No |
-| `MIDNIGHT` | not implemented | Proof server generates a proof; wallet submits; network verifies | Yes | Yes |
+| `MIDNIGHT` | `scripts/midnight/attest.mts` (CLI) | Proof server proves the call; wallet balances and submits; network verifies and the contract records it | Yes | Yes (not deployed yet) |
 
 Equivalence of `DEMO` and `MIDNIGHT_LOCAL` is tested: for the same evaluation
 they produce the same attestation id, evidence commitment and evaluator key,
@@ -118,12 +119,16 @@ implementation and ZKIR, which is what tests and the local adapter execute.
 `npm run contract:compile:full` also generates prover/verifier keys into
 `contract/build/` (git-ignored). The key generator requires a CPU with AVX2;
 on the machine this repository was built on (Intel Ivy Bridge, AVX only) it
-exits with SIGILL, so keys have not been generated locally. CI can generate
-them on demand (`workflow_dispatch` with `proving_keys: true`).
+exits with SIGILL, so keys are generated in CI: the *Proving keys + real ZK
+proof* job (`workflow_dispatch` with `proving_keys: true`) compiles them,
+proves the 6/6 case with the official proof server and the WASM prover, and
+uploads keys and evidence as artifacts. See [NETWORK.md](NETWORK.md).
 
 ## Path to a Midnight network deployment
 
-Not done. What it requires, from the current Midnight documentation:
+Scripted but not done: funding a wallet needs a human (faucet captcha).
+Commands and status are in [NETWORK.md](NETWORK.md). What it requires, from
+the current Midnight documentation:
 
 1. Generate proving keys (`contract:compile:full`) on an AVX2 machine.
 2. Run a proof server locally:
@@ -136,14 +141,18 @@ Not done. What it requires, from the current Midnight documentation:
    `midnight-js-level-private-state-provider`,
    `midnight-js-node-zk-config-provider`), passing the evaluator key,
    predicate id and threshold to the constructor.
-5. Implement a `MIDNIGHT` adapter whose `attest` submits `attest(model, suite)`
-   as a proven transaction and whose `lookup` reads `attestations` and
-   `releases` from the indexer.
-6. Implement `NetworkVerifier` (`src/lib/attestation/receipt.ts`): confirm the
-   transaction was accepted by the network (which verified its proof) on the
-   expected contract address, and that the ledger holds this exact record with
-   `releases[releaseKey] = id`. Pass it as `network` in the receipt's issuer
-   lookups. Only then can a receipt reach `NETWORK VERIFIED`.
+5. Done as CLI scripts (`scripts/midnight/*.mts`): `attest` submits
+   `attest(model, suite)` as a proven transaction; lookups read
+   `attestations` and `releases` from the indexer. Browser submission through
+   Lace is not implemented.
+6. Done: `judgeNetworkRecord` (`src/lib/attestation/network-verifier.ts`)
+   confirms that the contract at the configured address is CLOSED BOOK (its
+   `attest` verifier-key hash), that its evaluator, predicate and threshold
+   are the deployed ones, and that its ledger holds this exact record with
+   `releases[releaseKey] = id`. It does not inspect the transaction or the
+   proof bytes: the record can exist on the contract only because the network
+   verified the transaction's proof. Only then can a receipt reach
+   `NETWORK VERIFIED`.
 
 The contract, witnesses, commitment encoding and adapter interface do not need
 to change for this step.

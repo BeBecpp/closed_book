@@ -6,7 +6,8 @@ import { StepLog } from "@/components/demo/StepLog";
 import { useAttestation } from "@/components/demo/useAttestation";
 import { Hash } from "@/components/ui/Hash";
 import { RedactedLines } from "@/components/ui/Redaction";
-import { NETWORK_UNAVAILABLE, SOURCE_LABEL } from "@/src/lib/attestation/adapter";
+import { SOURCE_LABEL } from "@/src/lib/attestation/adapter";
+import { NetworkOption } from "@/components/evaluate/NetworkOption";
 import { freshSalt, getDemoAdapter, resetDemoLedger } from "@/src/lib/attestation/browser";
 import { RECEIPT_STATE, issuedStatus } from "@/src/lib/attestation/receipt";
 import { AlreadyAttested } from "@/components/demo/AlreadyAttested";
@@ -357,15 +358,7 @@ export function EvaluatorConsole() {
                 </span>
               </label>
             </li>
-            <li className="border-b border-line py-3">
-              <label className="flex cursor-not-allowed gap-3 opacity-60">
-                <input type="radio" name="adapter" disabled className="mt-1" />
-                <span>
-                  <span className="t-label block">{SOURCE_LABEL.MIDNIGHT}</span>
-                  <span className="text-[0.875rem] text-graphite">{NETWORK_UNAVAILABLE}</span>
-                </span>
-              </label>
-            </li>
+            <NetworkOption />
           </ul>
         </fieldset>
       </Section>
