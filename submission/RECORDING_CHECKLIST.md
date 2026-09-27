@@ -1,5 +1,7 @@
 # Recording checklist
 
+> The final video has already been produced (see `VIDEO.md`). Use this checklist only if you record it again by hand.
+
 All output goes to **D:**. Drive C: has almost no free space.
 
 ## Before recording

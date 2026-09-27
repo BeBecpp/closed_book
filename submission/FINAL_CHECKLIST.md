@@ -14,6 +14,9 @@ Deadline: **28 September 2026, 00:00 KST** (hackathon.midnightkorea.org)
 - [x] No secrets committed (seed, evaluator secret and password live only in the git-ignored `.midnight/`)
 - [x] No fake contract address, transaction or explorer link
 - [x] README links resolve
+- [x] Project Overview and Midnight Implementation reviewed and finalised in English and Korean (`FORM_FINAL.md`)
+- [x] Demo video produced: 2:34, 1080p, English + Korean captions (`VIDEO.md`)
+- [x] Captions: `CAPTIONS.srt` (EN), `CAPTIONS.ko.srt` (KO), `CAPTIONS.en-ko.srt` (both)
 
 ## Human steps
 - [ ] Luma name / affiliation filled in exactly
@@ -23,8 +26,7 @@ Deadline: **28 September 2026, 00:00 KST** (hackathon.midnightkorea.org)
 - [ ] Midnight Implementation pasted
 - [ ] Deck uploaded to Google Slides
 - [ ] Google Slides sharing: anyone with the link / viewer
-- [ ] Demo video recorded (`DEMO_TIMELINE.md`), voiced (`VOICEOVER_ELEVENLABS.txt`), exported to `D:\closed-book-submission\exports\`
-- [ ] Demo video uploaded (YouTube unlisted or Loom)
+- [ ] Demo video uploaded: `D:\closed-book-submission\exports\CLOSED-BOOK-DEMO-FINAL-SUBTITLED.mp4` to YouTube, unlisted
 - [ ] Demo video plays while logged out
 - [ ] Demo URL entered: https://closed-book.vercel.app/
 - [ ] Explorer certificate uploaded, if you have it
