@@ -1,0 +1,151 @@
+1
+00:00:00,000 --> 00:00:04,800
+This is CLOSED BOOK,
+built for Midnight Korea Hackathon 2026.
+
+2
+00:00:04,800 --> 00:00:12,000
+It proves that an AI release passed a confidential
+safety evaluation, without publishing the evaluation itself.
+
+3
+00:00:12,000 --> 00:00:17,500
+AI red-team suites contain secret prompts,
+working exploits, and model outputs.
+
+4
+00:00:17,500 --> 00:00:20,500
+Publish them, and the test is burned.
+
+5
+00:00:20,500 --> 00:00:25,000
+Keep them secret, and nobody outside
+can verify the safety claim.
+
+6
+00:00:25,000 --> 00:00:28,000
+CLOSED BOOK is a third option.
+
+7
+00:00:28,000 --> 00:00:32,000
+On the left is the private evaluation.
+The evaluator holds it.
+
+8
+00:00:32,000 --> 00:00:36,000
+Six confidential checks, all passing.
+
+9
+00:00:36,000 --> 00:00:38,500
+I generate an attestation.
+
+10
+00:00:38,500 --> 00:00:44,500
+On the right is what the public receives:
+a commitment to the exact model build,
+
+11
+00:00:44,500 --> 00:00:49,500
+a commitment to the exact test suite,
+the release rule, and a pass.
+
+12
+00:00:49,500 --> 00:00:55,000
+Not the suite. Not the outputs.
+Not the individual results.
+
+13
+00:00:55,000 --> 00:00:59,000
+Now one private check fails.
+Secret exfiltration.
+
+14
+00:00:59,000 --> 00:01:02,000
+Five out of six. I try again.
+
+15
+00:01:02,000 --> 00:01:05,000
+The attestation is refused.
+
+16
+00:01:05,000 --> 00:01:08,000
+And look at what the public learns.
+
+17
+00:01:08,000 --> 00:01:14,000
+Not which test failed. Not which prompt was used.
+Not what the model said.
+
+18
+00:01:14,000 --> 00:01:18,000
+A failed release does not become a proof.
+
+19
+00:01:18,000 --> 00:01:22,000
+This rule lives in a Compact contract on Midnight.
+
+20
+00:01:22,000 --> 00:01:27,500
+The attest circuit takes the private results
+as a witness, and asserts five things.
+
+21
+00:01:27,500 --> 00:01:33,000
+The evaluator is authorized.
+The model is the committed build.
+
+22
+00:01:33,000 --> 00:01:37,500
+The suite is the committed suite.
+The private results meet the threshold.
+
+23
+00:01:37,500 --> 00:01:41,500
+And this release has not been attested before.
+
+24
+00:01:41,500 --> 00:01:44,000
+Only commitments are disclosed.
+
+25
+00:01:44,000 --> 00:01:47,000
+This is not only a browser simulation.
+
+26
+00:01:47,000 --> 00:01:54,000
+The compiled circuit produced a real zero-knowledge proof,
+with Midnight's official proof server and its WASM prover.
+
+27
+00:01:54,000 --> 00:02:01,000
+When the witness is changed to five out of six,
+the constraint system itself rejects it.
+
+28
+00:02:01,000 --> 00:02:04,000
+No proof exists.
+
+29
+00:02:04,000 --> 00:02:09,000
+The Preprod deployment scripts
+and the network verifier are implemented.
+
+30
+00:02:09,000 --> 00:02:15,500
+I do not claim an on-chain deployment yet,
+because the test wallet still needs the faucet step.
+
+31
+00:02:15,500 --> 00:02:22,000
+Demo, local circuit, and network verification
+stay separate trust states, by design.
+
+32
+00:02:22,000 --> 00:02:29,000
+CLOSED BOOK turns a private evaluation into
+a verifiable release claim, without burning the evidence.
+
+33
+00:02:29,000 --> 00:02:34,000
+The proof is public.
+The evidence isn't.

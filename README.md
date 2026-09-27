@@ -4,65 +4,98 @@
 
 **Pass the test. Keep the test closed.**
 
-[![CI](https://github.com/BeBecpp/closed_book/actions/workflows/ci.yml/badge.svg)](https://github.com/BeBecpp/closed_book/actions/workflows/ci.yml)
-&nbsp;Compact 0.31.1 · compact-runtime 0.16.0 · Next.js 16 · MIT
-
-CLOSED BOOK lets an independent evaluator publish a **verifiable safety verdict
-for an AI release without publishing the red-team suite behind it**. The
-verdict is bound to the exact model build and the exact test suite. The
-prompts, outputs, exploit traces and individual results stay private.
-It is built on [Midnight](https://midnight.network) and its Compact language.
+CLOSED BOOK lets an evaluator prove that an exact AI model build passed a
+confidential safety evaluation, without revealing the test suite, the
+outputs, the exploit traces or the individual results. It is built on
+[Midnight](https://midnight.network).
 
 > The proof is public. The evidence isn't.
 
+**[Live demo](https://closed-book.vercel.app/)** · **[Protocol](https://closed-book.vercel.app/protocol)** · **[Evaluator console](https://closed-book.vercel.app/evaluate)** · **[ZK evidence](proofs/evidence.json)** · **[Network status](docs/NETWORK.md)**
+
+[![CI](https://github.com/BeBecpp/closed_book/actions/workflows/ci.yml/badge.svg)](https://github.com/BeBecpp/closed_book/actions/workflows/ci.yml)
+&nbsp;Compact 0.31.1 · compact-runtime 0.16.0 · proof server 8.1.0 · Next.js 16 · MIT
+
+| | |
+| --- | --- |
+| **Real Compact circuit** | [`contract/src/closed-book.compact`](contract/src/closed-book.compact): 5 assertions over a private witness |
+| **Real PLONK proof** | The 6/6 case was proven from the compiled `attest` circuit by the official proof server 8.1.0 and by the official WASM prover ([evidence](proofs/evidence.json)) |
+| **5/6 rejected at the ZK layer** | The same witness with one check failed yields `Failed direct assertion` / HTTP 400. No proof exists. |
+| **Tests** | 77 passing, deterministic, CI green; plus 3 opt-in tests against live Midnight Preprod |
+| **Network deployment** | **Not claimed.** The scripts and the network verifier exist; funding the Preprod wallet needs the faucet captcha, a human step ([details](docs/NETWORK.md)). |
+
 ![The CLOSED BOOK demonstration: the private evaluation on the left, the public attestation on the right](docs/screenshots/demo-pass.png)
 
----
+## Judge quick path (90 seconds)
 
-## Status at a glance
+1. Open the **[live demo](https://closed-book.vercel.app/)** and press **Generate attestation →** with all six private checks at PASS. The public side receives commitments and a PASS.
+2. Click **Secret exfiltration** to set it to FAIL, then generate again. The result is **Attestation refused**, and the public side learns nothing about which check failed, which prompt was used or what the model output.
+3. Read the contract: [`contract/src/closed-book.compact`](contract/src/closed-book.compact). The `attest` circuit contains the five assertions.
+4. Read the proof evidence: [`proofs/evidence.json`](proofs/evidence.json). It records a real 6/6 proof, and the refusals of the 5/6 case at the runtime, the WASM prover and the proof server.
+5. Reproduce:
 
-This project states exactly what works and what doesn't.
+   ```bash
+   git clone https://github.com/BeBecpp/closed_book.git && cd closed_book
+   npm ci
+   npm run verify          # lint → typecheck → 77 tests → production build
+   npm run contract:demo   # the compiled contract accepts 6/6 and refuses six attack cases
+   ```
 
-| Component | Status |
+No Compact compiler is needed for this; the compiled contract is committed.
+Regenerating the proof needs proving keys ([how](docs/NETWORK.md#1-real-zk-proofs-done)).
+
+## What the proof proves, and what it does not
+
+CLOSED BOOK **does not** run a model inside zero knowledge. It proves a narrow
+statement: an **authorized evaluator** holds private evaluation data that is
+bound to an **exact model-build commitment** and an **exact suite
+commitment**, whose **six private check results** satisfy a **public release
+predicate**, and whose results are fixed in an **evidence commitment**, and
+this release has not been attested before.
+
+The evaluator remains trusted for the truth of its measurements. The circuit
+makes the evaluator accountable (a registered key and a committed result set)
+and makes the release claim verifiable without disclosure.
+
+| Proves | Does not prove |
 | --- | --- |
-| Compact contract ([`closed-book.compact`](contract/src/closed-book.compact)) | ✅ Compiles with toolchain 0.31.1. CI recompiles it on every push and fails if the committed output drifts. |
-| Circuit logic | ✅ Runs through `@midnight-ntwrk/compact-runtime` in the tests, a CLI transcript and the web console. |
-| Web app: demo, evaluator console, receipt, protocol | ✅ Working. 77 tests (+3 opt-in live-network tests). |
-| Proving keys and a real ZK proof | ✅ Keys generated in CI. A real proof of the 6/6 case, produced by the official proof server and the WASM prover; 5/6 is refused at the ZK layer ([evidence](docs/NETWORK.md)). |
-| Network verifier (receipt → *Network verified*) | ✅ Implemented and tested on real contract-state bytes. It has nothing to verify until a contract is deployed. |
-| Midnight network deployment | ❌ Not done. Blocked on funding a wallet (faucet captcha, a human step). No contract address, no transaction. |
+| The attestation came from the registered evaluator key | That the model was executed, or executed inside a circuit |
+| It is bound to one exact model build | That the evaluator measured truthfully |
+| It is bound to one exact confidential suite | That the suite is good or complete |
+| The private results satisfy the public threshold (6 of 6) | That the model is safe in general |
+| The results are fixed in a salted evidence commitment | That the deployed service runs the evaluated build |
+| One attestation per (model, suite, predicate) | |
 
-Nothing on screen pretends otherwise. Every record says where it came from,
-and no receipt can show "network verified" unless a deployed CLOSED BOOK
-contract holds that exact record.
+## Real ZK evidence
 
-## Quick start
+Recorded in CI ([`proofs/evidence.json`](proofs/evidence.json)), reproducible with `npm run proof:demo`:
 
-```bash
-git clone https://github.com/BeBecpp/closed_book.git
-cd closed_book
-npm install
-npm run dev              # http://localhost:3000
-```
+| | |
+| --- | --- |
+| Circuit | `attest`, k = 16, compiled by Compact 0.31.1 |
+| Proving key | `attest.prover`, 19,485,981 bytes (generated in CI on an AVX2 runner) |
+| Verifier key | `attest.verifier`, 2,119 bytes ([committed](proofs/attest.verifier)) |
+| 6/6, official proof server 8.1.0 | proof generated: 4,508 bytes |
+| 6/6, official WASM prover (`zkir-v2`) | proof generated: 4,501 bytes (CI, and again on a laptop without AVX2) |
+| 5/6, circuit execution | `failed assert: release predicate not satisfied` (no preimage exists) |
+| 5/6 forced into the preimage | `Failed direct assertion` (WASM) · `HTTP 400` (proof server). No proof. |
+| Control: 5/6 under a threshold-5 deployment | constraints satisfied, so the threshold is what gates it |
 
-Then, in about a minute:
+The prover checks each proof against the verifier key before returning it.
+These proofs are standalone: not bound to a transaction, never submitted.
 
-1. On the home page, press **Generate attestation →**. The public side
-   fills in.
-2. Click **Secret exfiltration** to fail it, then generate again. The
-   attestation is **refused**, and the public side never learns which check
-   failed.
-3. Open **/evaluate** and choose **MIDNIGHT · LOCAL CIRCUIT**. This runs the
-   compiled Compact contract on your machine.
+## Network status
 
-Or watch the contract itself in a terminal:
+The Midnight Preprod path is implemented but **not deployed**:
+- the deploy, attest and verify scripts;
+- a public-indexer reader, tested live against Preprod;
+- a network verifier that promotes a receipt to *Network verified* only when
+  the deployed contract holds the exact record.
 
-```bash
-npm run contract:demo
-```
-
-No Compact compiler is needed for any of this: the compiled contract is
-committed.
+Funding the wallet requires the official faucet's captcha. Until a contract is
+deployed, no receipt can reach *Network verified*, and nothing in this
+repository claims a contract address or a transaction. See
+[docs/NETWORK.md](docs/NETWORK.md).
 
 ---
 
@@ -246,9 +279,12 @@ src/lib/commitments/     commitment scheme, byte-exact mirror of the contract
 src/lib/attestation/     adapter boundary, demo + Midnight adapters, receipt trust states, verification
 src/lib/midnight/        compiled-contract wrapper, localhost-only server guard
 src/lib/demo/            demo fixture (short, harmless, synthetic test cases)
-scripts/                 compile-contract.mjs, contract-demo.mjs
+scripts/                 compile-contract.mjs, contract-demo.mjs, proof-demo.mjs
+scripts/midnight/        Preprod network: init, status, dust, deploy, attest, verify
+proofs/                  real ZK proof evidence (6/6 proofs, 5/6 refusals, verifier key)
 tests/                   commitments, demo adapter, receipt states, compiled contract
-docs/                    ARCHITECTURE · PRIVACY-BOUNDARY · THREAT-MODEL · PROTOCOL · DEMO
+docs/                    ARCHITECTURE · PRIVACY-BOUNDARY · THREAT-MODEL · PROTOCOL · DEMO · NETWORK
+submission/              Midnight Korea Hackathon 2026 submission package
 public/brand/            mark, reversed mark, wordmark (hand-built SVG)
 BRAND.md · COPY.md · PROJECT.md
 ```

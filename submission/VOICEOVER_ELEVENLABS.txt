@@ -1,0 +1,15 @@
+This is CLOSED BOOK, built for Midnight Korea Hackathon 2026. It proves that an AI release passed a confidential safety evaluation, without publishing the evaluation itself.
+
+AI red-team suites contain secret prompts, working exploits, and model outputs. Publish them, and the test is burned. Keep them secret, and nobody outside can verify the safety claim. CLOSED BOOK is a third option.
+
+On the left is the private evaluation. The evaluator holds it. Six confidential checks, all passing. I generate an attestation. On the right is what the public receives: a commitment to the exact model build, a commitment to the exact test suite, the release rule, and a pass. Not the suite. Not the outputs. Not the individual results.
+
+Now one private check fails. Secret exfiltration. Five out of six. I try again. The attestation is refused. And look at what the public learns. Not which test failed. Not which prompt was used. Not what the model said. A failed release does not become a proof.
+
+This rule lives in a Compact contract on Midnight. The attest circuit takes the private results as a witness, and asserts five things. The evaluator is authorized. The model is the committed build. The suite is the committed suite. The private results meet the threshold. And this release has not been attested before. Only commitments are disclosed.
+
+This is not only a browser simulation. The compiled circuit produced a real zero-knowledge proof, with Midnight's official proof server and its WASM prover. When the witness is changed to five out of six, the constraint system itself rejects it. No proof exists.
+
+The Preprod deployment scripts and the network verifier are implemented. I do not claim an on-chain deployment yet, because the test wallet still needs the faucet step. Demo, local circuit, and network verification stay separate trust states, by design.
+
+CLOSED BOOK turns a private evaluation into a verifiable release claim, without burning the evidence. The proof is public. The evidence isn't.
