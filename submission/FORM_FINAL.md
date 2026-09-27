@@ -143,13 +143,13 @@ Privacy가 없으면 기밀 테스트 세트가 노출되어 가치를 잃습니
 PROJECT DECK
 ==================================================
 
-[GOOGLE SLIDES URL]
+https://docs.google.com/presentation/d/172x6Z9k-bIHHZIV_NlIJjgeDVpKPzW6Q92kdq6mTeqA/edit?usp=sharing
 
 ==================================================
 DEMO VIDEO
 ==================================================
 
-[YOUTUBE OR LOOM URL]
+https://youtu.be/lVleHwO8s7Y
 
 ==================================================
 DEMO URL

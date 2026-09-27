@@ -24,10 +24,10 @@ Deadline: **28 September 2026, 00:00 KST** (hackathon.midnightkorea.org)
 - [ ] Representative contact (email or Discord)
 - [ ] Project Overview pasted
 - [ ] Midnight Implementation pasted
-- [ ] Deck uploaded to Google Slides
-- [ ] Google Slides sharing: anyone with the link / viewer
-- [ ] Demo video uploaded: `D:\closed-book-submission\exports\CLOSED-BOOK-DEMO-FINAL-SUBTITLED.mp4` to YouTube, unlisted
-- [ ] Demo video plays while logged out
+- [x] Deck uploaded to Google Slides
+- [x] Google Slides sharing: anyone with the link / viewer (checked logged out)
+- [x] Demo video uploaded: https://youtu.be/lVleHwO8s7Y (unlisted)
+- [x] Demo video reachable while logged out
 - [ ] Demo URL entered: https://closed-book.vercel.app/
 - [ ] Explorer certificate uploaded, if you have it
 - [ ] Scholar certificate uploaded, if you have it

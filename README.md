@@ -11,7 +11,7 @@ outputs, the exploit traces or the individual results. It is built on
 
 > The proof is public. The evidence isn't.
 
-**[Live demo](https://closed-book.vercel.app/)** · **[Protocol](https://closed-book.vercel.app/protocol)** · **[Evaluator console](https://closed-book.vercel.app/evaluate)** · **[ZK evidence](proofs/evidence.json)** · **[Network status](docs/NETWORK.md)**
+**[Live demo](https://closed-book.vercel.app/)** · **[Demo video](https://youtu.be/lVleHwO8s7Y)** · **[Deck](https://docs.google.com/presentation/d/172x6Z9k-bIHHZIV_NlIJjgeDVpKPzW6Q92kdq6mTeqA/edit?usp=sharing)** · **[Protocol](https://closed-book.vercel.app/protocol)** · **[Evaluator console](https://closed-book.vercel.app/evaluate)** · **[ZK evidence](proofs/evidence.json)** · **[Network status](docs/NETWORK.md)**
 
 [![CI](https://github.com/BeBecpp/closed_book/actions/workflows/ci.yml/badge.svg)](https://github.com/BeBecpp/closed_book/actions/workflows/ci.yml)
 &nbsp;Compact 0.31.1 · compact-runtime 0.16.0 · proof server 8.1.0 · Next.js 16 · MIT
